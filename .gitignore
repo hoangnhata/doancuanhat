@@ -1,0 +1,28 @@
+# Build & dependencies
+node_modules/
+backend/target/
+target/
+frontend/build/
+frontend/.dart_tool/
+frontend/.pub-cache/
+frontend/.pub/
+ai_service/.venv/
+**/__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# Env & secrets (không commit key thật)
+.env
+.env.local
+.env.*.local
+*.local
+
+# IDE & OS
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

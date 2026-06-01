@@ -1,0 +1,23 @@
+{
+  "name": "Expense Manager — Natta",
+  "short_name": "Natta",
+  "icons": [
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "theme_color": "#0288D1",
+  "background_color": "#F1F5F9",
+  "display": "standalone",
+  "start_url": "/",
+  "lang": "vi"
+}

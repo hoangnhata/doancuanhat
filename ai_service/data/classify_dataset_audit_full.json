@@ -1,0 +1,87 @@
+{
+  "total_rows": 10000,
+  "num_classes": 20,
+  "per_label": {
+    "Ăn uống": 500,
+    "Di chuyển": 500,
+    "Mua sắm": 500,
+    "Nhà ở": 500,
+    "Hóa đơn": 500,
+    "Giải trí": 500,
+    "Du lịch": 500,
+    "Giáo dục": 500,
+    "Sức khỏe": 500,
+    "Gia đình": 500,
+    "Thú cưng": 500,
+    "Quà tặng": 500,
+    "Từ thiện": 500,
+    "Khác": 500,
+    "Lương": 500,
+    "Thưởng": 500,
+    "Freelance": 500,
+    "Đầu tư": 500,
+    "Bán hàng": 500,
+    "Thu nhập khác": 500
+  },
+  "duplicate_text_rows": 0,
+  "duplicate_text_label_rows": 0,
+  "conflicting_texts": 0,
+  "conflict_examples": [],
+  "hard_coverage": {
+    "Bán hàng": {
+      "total": 500,
+      "hard_marker_hits": 394,
+      "ratio": 0.788
+    },
+    "Mua sắm": {
+      "total": 500,
+      "hard_marker_hits": 30,
+      "ratio": 0.06
+    },
+    "Hóa đơn": {
+      "total": 500,
+      "hard_marker_hits": 215,
+      "ratio": 0.43
+    },
+    "Nhà ở": {
+      "total": 500,
+      "hard_marker_hits": 87,
+      "ratio": 0.174
+    },
+    "Di chuyển": {
+      "total": 500,
+      "hard_marker_hits": 107,
+      "ratio": 0.214
+    },
+    "Du lịch": {
+      "total": 500,
+      "hard_marker_hits": 70,
+      "ratio": 0.14
+    },
+    "Gia đình": {
+      "total": 500,
+      "hard_marker_hits": 167,
+      "ratio": 0.334
+    },
+    "Sức khỏe": {
+      "total": 500,
+      "hard_marker_hits": 255,
+      "ratio": 0.51
+    },
+    "Khác": {
+      "total": 500,
+      "hard_marker_hits": 114,
+      "ratio": 0.228
+    },
+    "Thu nhập khác": {
+      "total": 500,
+      "hard_marker_hits": 263,
+      "ratio": 0.526
+    }
+  },
+  "global_easy_keyword_ratio": 0.0917,
+  "avg_text_len": 26.1,
+  "short_text_lt_12": 91,
+  "rows_before_dedup": 10000,
+  "rows_after_safe_dedup": 10000
+}

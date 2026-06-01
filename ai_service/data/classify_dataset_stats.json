@@ -1,0 +1,196 @@
+{
+  "before": {
+    "total_rows": 10232,
+    "num_labels": 20,
+    "label_counts": {
+      "Bán hàng": 505,
+      "Di chuyển": 518,
+      "Du lịch": 506,
+      "Freelance": 509,
+      "Gia đình": 506,
+      "Giáo dục": 508,
+      "Giải trí": 509,
+      "Hóa đơn": 515,
+      "Khác": 509,
+      "Lương": 510,
+      "Mua sắm": 516,
+      "Nhà ở": 511,
+      "Quà tặng": 520,
+      "Sức khỏe": 509,
+      "Thu nhập khác": 542,
+      "Thú cưng": 502,
+      "Thưởng": 505,
+      "Từ thiện": 502,
+      "Ăn uống": 522,
+      "Đầu tư": 508
+    },
+    "exact_dup_rows": 203,
+    "conflict_texts": 1,
+    "missing_text": 0,
+    "missing_label": 0,
+    "avg_text_len": 26.34,
+    "duplicate_pct": 0.0199,
+    "unique_text_pct": 0.9801,
+    "vocab_size": 146,
+    "imbalance_ratio": 1.08,
+    "top_skeleton_repeats": [
+      [
+        "thuong du an <AMT>|Thưởng",
+        8
+      ],
+      [
+        "bonus quy <AMT>|Thưởng",
+        7
+      ],
+      [
+        "thuong du an xong <AMT>|Thưởng",
+        7
+      ],
+      [
+        "cty thuong tet <AMT>|Thưởng",
+        7
+      ],
+      [
+        "xem phim <AMT>|Giải trí",
+        7
+      ],
+      [
+        "ung ho lu lut <AMT>|Từ thiện",
+        6
+      ],
+      [
+        "nhan sinh nhat <AMT>|Thu nhập khác",
+        6
+      ],
+      [
+        "cho ban qua sn <AMT>|Quà tặng",
+        6
+      ],
+      [
+        "mua cat meo <AMT>|Thú cưng",
+        6
+      ],
+      [
+        "kpi đat nhan <AMT>|Thưởng",
+        6
+      ]
+    ],
+    "keyword_leakage": {
+      "Lương": {
+        "keyword_hit_ratio": 0.269,
+        "n": 510
+      },
+      "Thưởng": {
+        "keyword_hit_ratio": 0.521,
+        "n": 505
+      },
+      "Ăn uống": {
+        "keyword_hit_ratio": 0.5,
+        "n": 522
+      },
+      "Di chuyển": {
+        "keyword_hit_ratio": 0.637,
+        "n": 518
+      },
+      "Hóa đơn": {
+        "keyword_hit_ratio": 0.217,
+        "n": 515
+      },
+      "Quà tặng": {
+        "keyword_hit_ratio": 0.417,
+        "n": 520
+      },
+      "Thu nhập khác": {
+        "keyword_hit_ratio": 0.382,
+        "n": 542
+      }
+    }
+  },
+  "after": {
+    "total_rows": 10000,
+    "num_labels": 20,
+    "label_counts": {
+      "Bán hàng": 500,
+      "Di chuyển": 500,
+      "Du lịch": 500,
+      "Freelance": 500,
+      "Gia đình": 500,
+      "Giáo dục": 500,
+      "Giải trí": 500,
+      "Hóa đơn": 500,
+      "Khác": 500,
+      "Lương": 500,
+      "Mua sắm": 500,
+      "Nhà ở": 500,
+      "Quà tặng": 500,
+      "Sức khỏe": 500,
+      "Thu nhập khác": 500,
+      "Thú cưng": 500,
+      "Thưởng": 500,
+      "Từ thiện": 500,
+      "Ăn uống": 500,
+      "Đầu tư": 500
+    },
+    "exact_dup_rows": 0,
+    "conflict_texts": 0,
+    "missing_text": 0,
+    "missing_label": 0,
+    "avg_text_len": 26.81,
+    "duplicate_pct": 0.0,
+    "unique_text_pct": 1.0,
+    "vocab_size": 147,
+    "imbalance_ratio": 1.0,
+    "top_skeleton_repeats": [
+      [
+        "thuong du an <AMT>|Thưởng",
+        8
+      ],
+      [
+        "cty thuong tet <AMT>|Thưởng",
+        7
+      ],
+      [
+        "bonus quy <AMT>|Thưởng",
+        7
+      ],
+      [
+        "thuong du an xong <AMT>|Thưởng",
+        6
+      ],
+      [
+        "kpi đat nhan <AMT>|Thưởng",
+        6
+      ]
+    ],
+    "keyword_leakage": {
+      "Lương": {
+        "keyword_hit_ratio": 0.256,
+        "n": 500
+      },
+      "Thưởng": {
+        "keyword_hit_ratio": 0.516,
+        "n": 500
+      },
+      "Ăn uống": {
+        "keyword_hit_ratio": 0.492,
+        "n": 500
+      },
+      "Di chuyển": {
+        "keyword_hit_ratio": 0.644,
+        "n": 500
+      },
+      "Hóa đơn": {
+        "keyword_hit_ratio": 0.208,
+        "n": 500
+      },
+      "Quà tặng": {
+        "keyword_hit_ratio": 0.41,
+        "n": 500
+      },
+      "Thu nhập khác": {
+        "keyword_hit_ratio": 0.398,
+        "n": 500
+      }
+    }
+  }
+}

@@ -1,0 +1,248 @@
+text,label
+# --- Thu nhập: nhận / được / hoàn (dễ nhầm với chi) ---
+nhận sinh nhật 500k,Thu nhập khác
+nhan sinh nhat 500k,Thu nhập khác
+nhận tiền mừng sinh nhật 500k,Thu nhập khác
+nhận quà sinh nhật bạn 300k,Thu nhập khác
+nhận mừng sinh nhật 1tr,Thu nhập khác
+được tặng sinh nhật 200k,Thu nhập khác
+được bạn mừng sinh nhật 500k,Thu nhập khác
+mừng tuổi nhận được 200k,Thu nhập khác
+sinh nhật nhận 500k,Thu nhập khác
+tiền mừng sinh nhật nhận 1tr,Thu nhập khác
+nhận phong bì mừng cưới 500k,Thu nhập khác
+nhận tiền mừng cưới 2tr,Thu nhập khác
+nhận quà tết 1tr,Thu nhập khác
+nhận lì xì tết 500k,Thu nhập khác
+được chuyển khoản mừng tốt nghiệp 1tr,Thu nhập khác
+ck nhận mừng cưới 500k,Thu nhập khác
+nhận lại tiền cho mượn 2tr,Thu nhập khác
+nhận lại tiền mượn bạn 500k,Thu nhập khác
+bạn trả tiền mượn 300k,Thu nhập khác
+được hoàn tiền đơn Shopee 250k,Thu nhập khác
+hoàn tiền đơn hủy 180k,Thu nhập khác
+refund grab food 45k,Thu nhập khác
+cashback thẻ tín dụng 120k,Thu nhập khác
+hoàn tiền momo 50k,Thu nhập khác
+nhận tiền bảo hiểm trả 3tr,Thu nhập khác
+nhận tiền từ mẹ chuyển khoản 2tr,Thu nhập khác
+mẹ chuyển tiền cho con 1tr,Thu nhập khác
+nhận thưởng KPI quý 4 5tr,Thưởng
+thuong du an xong 3tr,Thưởng
+bonus cuối năm 10tr,Thưởng
+nhận lương tháng 5 12tr,Lương
+luong thang 12 ve tk 15tr,Lương
+lương kỳ 2 tháng 11 9tr,Lương
+nhận tiền công tháng 8tr,Lương
+thu nhập freelance thiết kế web 4tr,Freelance
+nhận tiền làm website 3tr,Freelance
+thanh toán dự án app 8tr,Freelance
+cổ tức cổ phiếu VNM 2tr,Đầu tư
+lãi tiết kiệm ngân hàng 500k,Đầu tư
+nhận lãi gửi kỳ hạn 300k,Đầu tư
+bán laptop cũ 5tr,Bán hàng
+doanh thu bán hàng online 2tr,Bán hàng
+thu tiền bán đồ cũ 800k,Bán hàng
+# --- Chi: cho / tặng / mừng (dễ nhầm với thu) ---
+cho bạn quà sinh nhật 500k,Quà tặng
+tặng quà sinh nhật bạn thân 300k,Quà tặng
+mừng sinh nhật cho đồng nghiệp 200k,Quà tặng
+biếu tiền mừng sinh nhật bạn 500k,Quà tặng
+cho mẹ tiền mừng sinh nhật 1tr,Quà tặng
+mua quà tặng sinh nhật sếp 500k,Quà tặng
+tặng hoa khai trương 300k,Quà tặng
+phong bì mừng cưới bạn 500k,Quà tặng
+mừng cưới cho bạn 1tr,Quà tặng
+tặng quà tết ông bà 2tr,Quà tặng
+mua quà valentine 400k,Quà tặng
+cho bạn mừng tốt nghiệp 500k,Quà tặng
+# --- Cho trong nghĩa khác (chi gia đình / giáo dục, không phải thu) ---
+cho con tiền tiêu vặt 200k,Gia đình
+cho con học phí tháng 3tr,Giáo dục
+cho mẹ mua thuốc 500k,Gia đình
+cho ba tiền khám bệnh 1tr,Sức khỏe
+cho bạn mượn tiền 500k,Khác
+chuyển khoản cho bạn vay 2tr,Khác
+gửi tiền về quê cho ba mẹ 3tr,Gia đình
+tiền gửi về cho gia đình 5tr,Gia đình
+mua sữa cho em bé 400k,Gia đình
+mua đồ chơi cho cháu 200k,Mua sắm
+học piano cho người lớn 1tr2,Giáo dục
+gia sư toán cho con 500k,Giáo dục
+# --- Câu có ngày / thời gian (model chỉ học danh mục) ---
+ngày 27/05/2026 ăn trưa 50k,Ăn uống
+ngày 15/01/2025 grab đi làm 35k,Di chuyển
+27/05/2026 cafe sáng 35k,Ăn uống
+01-12-2024 mua sắm tiki 500k,Mua sắm
+hôm qua ăn tối lẩu 300k,Ăn uống
+hom qua do xang 150k,Di chuyển
+hôm kia khám bệnh 500k,Sức khỏe
+ngày 8/3 tặng hoa mẹ 200k,Quà tặng
+# --- Nhầm danh mục gần nghĩa ---
+grab food giao đồ ăn 80k,Ăn uống
+grab bike đi làm 25k,Di chuyển
+grab car sân bay 350k,Di chuyển
+shopee mua áo 200k,Mua sắm
+shopee mua gạo nấu cơm 150k,Ăn uống
+cafe làm việc 45k,Ăn uống
+cafe ngồi chơi game 60k,Giải trí
+netflix tháng 260k,Giải trí
+tiền điện tháng 5 450k,Hóa đơn
+tiền nước sinh hoạt 120k,Hóa đơn
+wifi nhà tháng 6 200k,Hóa đơn
+thuê phòng trọ tháng 3tr,Nhà ở
+sửa ống nước nhà 500k,Nhà ở
+khám răng 1tr5,Sức khỏe
+mua thuốc cảm 80k,Sức khỏe
+vé máy bay du lịch Đà Nẵng 2tr,Du lịch
+khách sạn nghỉ dưỡng 3tr,Du lịch
+học phí kỳ 2 8tr,Giáo dục
+mua sách ôn thi 200k,Giáo dục
+ủng hộ lũ lụt 500k,Từ thiện
+quyên góp trường học 200k,Từ thiện
+tiêm phòng chó 300k,Thú cưng
+mua cát vệ sinh mèo 100k,Thú cưng
+# --- Viết tắt / không dấu / lẫn tiếng Anh ---
+an trua 50k,Ăn uống
+com tam 40k,Ăn uống
+tra sua 35k,Ăn uống
+xang xe 100k,Di chuyển
+mua do shopee 250k,Mua sắm
+dien thoai thang 400k,Hóa đơn
+nhan luong 10tr,Lương
+nhan thuong tet 2tr,Thưởng
+nhan sinh nhat 500k,Thu nhập khác
+cho ban qua sn 300k,Quà tặng
+# --- Số tiền viết kiểu khó ---
+500 nghìn ăn trưa,Ăn uống
+1 triệu 2 tiền thuê nhà,Nhà ở
+1,5tr mua quần áo,Mua sắm
+2.500.000 lương tháng,Lương
+350.000đ grab,Di chuyển
+50k grabfood,Ăn uống
+# --- Câu dài / nhiều thông tin (demo giảng viên) ---
+hôm nay đi ăn lẩu với team công ty tốn 450k,Ăn uống
+chiều nay grab về nhà mưa 55k,Di chuyển
+vừa nhận lương tháng 6 công ty chuyển 14tr,Lương
+bạn ck mừng cưới tôi 500k,Thu nhập khác
+vừa tặng sếp quà tết 1tr,Quà tặng
+trả tiền học cho con lớp 1 2tr,Giáo dục
+đóng tiền điện EVN tháng 7 380k,Hóa đơn
+mua vé phim avatar 120k,Giải trí
+spa làm nail 250k,Mua sắm
+cắt tóc barber 80k,Mua sắm
+sửa laptop thay ổ cứng 800k,Khác
+phí ngân hàng chuyển khoản 11k,Hóa đơn
+mua bảo hiểm xe máy 200k,Di chuyển
+đổ xăng exciter 70k,Di chuyển
+uống bia cuối tuần 300k,Ăn uống
+karaoke đêm 500k,Giải trí
+gym tháng 600k,Sức khỏe
+vitamin bổ sung 150k,Sức khỏe
+# --- Bẫy: từ “thu” / “nhận” nhưng là chi ---
+thuê xe máy đi chơi 150k,Di chuyển
+thuê phòng khách sạn 800k,Du lịch
+thu phí gửi xe 20k,Di chuyển
+nộp thuế thu nhập cá nhân 2tr,Hóa đơn
+mua vé thu phí cầu đường 80k,Di chuyển
+# --- Bẫy: “bán” trong câu mua ---
+mua bán đồ chợ 100k,Mua sắm
+đi chợ mua rau củ 80k,Ăn uống
+# --- Demo / hỏi vặn thường gặp khi bảo vệ ---
+nhận tiền mừng tân gia 2tr,Thu nhập khác
+được mừng khai trương 500k,Thu nhập khác
+nhận hỗ trợ từ bạn 300k,Thu nhập khác
+chuyển khoản nhận từ khách hàng 4tr,Bán hàng
+khách chuyển tiền đặt hàng 1tr5,Bán hàng
+nhận đặt cọc thuê nhà 5tr,Thu nhập khác
+trả đặt cọc nhận lại 5tr,Thu nhập khác
+tiền thừa momo hoàn 20k,Thu nhập khác
+lãi suất ngân hàng tháng 45k,Đầu tư
+cổ phiếu bán lãi 3tr,Đầu tư
+nhận tiền dạy kèm 600k,Freelance
+làm thêm cuối tuần 500k,Freelance
+part time cửa hàng 2tr,Freelance
+shipper nhận tiền công 3tr,Freelance
+cho vay bạn 1tr,Khác
+mượn bạn 500k trả lại,Khác
+trả nợ ngân hàng 5tr,Hóa đơn
+trả góp điện thoại 800k,Mua sắm
+cắt tóc + gội đầu 120k,Mua sắm
+nhuộm tóc salon 400k,Mua sắm
+mua sim điện thoại 150k,Mua sắm
+nạp tiền điện thoại 100k,Hóa đơn
+mua data 4G 50k,Hóa đơn
+đóng học phí đại học 12tr,Giáo dục
+mua vở bút học sinh 80k,Giáo dục
+tiền ăn ký túc xá 1tr5,Ăn uống
+canteen trường 35k,Ăn uống
+mua đồ ăn siêu thị nấu 200k,Ăn uống
+order food delivery 90k,Ăn uống
+đặt bàn nhà hàng sinh nhật 1tr,Ăn uống
+tiệc cưới bạn 500k,Ăn uống
+đi bar uống cocktail 300k,Giải trí
+chơi game nạp thẻ 200k,Giải trí
+steam mua game 250k,Giải trí
+vé concert 800k,Giải trí
+câu cá cuối tuần 150k,Giải trí
+leo núi phí tour 600k,Du lịch
+visa du lịch 3tr,Du lịch
+bảo hiểm du lịch 200k,Du lịch
+khám covid test 300k,Sức khỏe
+nhổ răng khẩn 2tr,Sức khỏe
+mua kính cận 1tr,Sức khỏe
+thuốc lá 50k,Khác
+mua bình gas 350k,Nhà ở
+thuê máy giặt 100k,Nhà ở
+giặt là ủi đồ 60k,Khác
+sửa điều hòa 500k,Nhà ở
+mua quạt điện 400k,Nhà ở
+phí ATM rút tiền 5k,Hóa đơn
+phí duy trì thẻ 99k,Hóa đơn
+chuyển khoản liên ngân hàng 10k,Hóa đơn
+đóng bảo hiểm xã hội 800k,Hóa đơn
+phạt giao thông 500k,Di chuyển
+sửa xe sau va quẹt 2tr,Di chuyển
+rửa xe ô tô 100k,Di chuyển
+đăng kiểm xe 200k,Di chuyển
+mua vé xe khách về quê 250k,Di chuyển
+vé tàu lễ 400k,Di chuyển
+# --- Cặp đối lập cho thầy so sánh (nhận vs cho cùng ngữ cảnh) ---
+nhận quà sinh nhật từ sếp 500k,Thu nhập khác
+tặng quà sinh nhật cho sếp 500k,Quà tặng
+nhận tiền mừng cưới 1tr,Thu nhập khác
+mừng cưới bạn 1tr,Quà tặng
+nhận lì xì 200k,Thu nhập khác
+cho lì xì con 200k,Quà tặng
+được mẹ cho tiền tiêu vặt 500k,Thu nhập khác
+cho con tiền tiêu vặt 500k,Gia đình
+nhận lương 10tr,Lương
+trả lương nhân viên 10tr,Khác
+nhận thưởng dự án 2tr,Thưởng
+chi thưởng nhân viên 2tr,Khác
+# --- Không dấu / lỗi gõ phổ biến ---
+nhan tien mung sinh nhat 500k,Thu nhập khác
+cho ban mung cuoi 500k,Quà tặng
+an sang banh mi 20k,Ăn uống
+di cho mua do 300k,Mua sắm
+tien dien thang 400k,Hóa đơn
+nhan luong thang 6 12tr,Lương
+hoan tien don hang 100k,Thu nhập khác
+# --- Số + đơn vị lẫn lộn ---
+500k nhận mừng sinh nhật,Thu nhập khác
+300k tặng bạn cưới,Quà tặng
+50k ăn sáng,Ăn uống
+2tr tiền nhà tháng 6,Nhà ở
+15tr lương về,Lương
+# --- Viết tắt / câu ngắn (hay dùng trên app) ---
+ck tiền trọ,Nhà ở
+ck tien tro,Nhà ở
+dt mới 15tr,Mua sắm
+dt moi 15tr,Mua sắm
+mb ck freelance,Freelance
+đầu tư coin lời 2tr,Đầu tư
+dau tu coin loi 2tr,Đầu tư
+nhận lãi crypto 500k,Đầu tư
+ck freelance 3tr,Freelance
+mua dt mới 12tr,Mua sắm
+tiền trọ tháng 5 2tr5,Nhà ở

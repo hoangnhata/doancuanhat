@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.ipynb_checkpoints/
+*.egg-info/
+.pytest_cache/
+
+# Classify artifacts only — KHÔNG ignore toàn bộ *.pt (giữ ocr_*, forecast_*)
+models/_smoke*/
+models/grid_runs/
+models/classify_*.pt
+models/classify_checkpoint.pt
+models/classify_best.pt
+models/IMPROVEMENT_REPORT.md
+models/MODEL_IMPROVEMENT_REPORT.md
+models/grid_search_results.json
