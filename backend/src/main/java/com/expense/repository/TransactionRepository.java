@@ -12,6 +12,7 @@ import org.springframework.stereotype.Repository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface TransactionRepository extends JpaRepository<Transaction, Long> {
@@ -112,6 +113,18 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate);
 
+    @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t WHERE t.user.id = :userId " +
+           "AND t.type = :type AND t.category.id = :categoryId " +
+           "AND t.transactionDate BETWEEN :startDate AND :endDate " +
+           "AND (:excludeId IS NULL OR t.id <> :excludeId)")
+    BigDecimal sumAmountByUserCategoryTypeAndDateRangeExcluding(
+            @Param("userId") Long userId,
+            @Param("categoryId") Long categoryId,
+            @Param("type") TransactionType type,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("excludeId") Long excludeId);
+
     /**
      * Tổng chi (EXPENSE) theo từng ngày — dùng cho dự báo AI (cửa sổ 30 ngày).
      */
@@ -126,5 +139,17 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate,
             @Param("walletId") Long walletId,
+            @Param("includeLegacy") boolean includeLegacy);
+
+    @Query("SELECT MAX(t.transactionDate) FROM Transaction t WHERE t.user.id = :userId")
+    Optional<LocalDate> findLatestTransactionDateByUserId(@Param("userId") Long userId);
+
+    @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t " +
+           "WHERE t.user.id = :userId AND t.type = :type " +
+           "AND (t.wallet.id = :walletId OR (:includeLegacy = true AND t.wallet IS NULL))")
+    BigDecimal sumAllAmountByUserWalletAndType(
+            @Param("userId") Long userId,
+            @Param("walletId") Long walletId,
+            @Param("type") TransactionType type,
             @Param("includeLegacy") boolean includeLegacy);
 }

@@ -58,6 +58,9 @@ class _CategoryDonutChartState extends State<CategoryDonutChart> {
         ? '${((amount / total) * 100).round()}%'
         : null;
 
+    final centerSpace = widget.height * 0.26;
+    final sectionRadius = widget.height * 0.145;
+
     return SizedBox(
       height: widget.height,
       child: Stack(
@@ -66,14 +69,14 @@ class _CategoryDonutChartState extends State<CategoryDonutChart> {
           PieChart(
             PieChartData(
               sectionsSpace: 2,
-              centerSpaceRadius: 52,
+              centerSpaceRadius: centerSpace,
               sections: chartData.asMap().entries.map((e) {
                 return PieChartSectionData(
                   value: (e.value['amount'] as num).toDouble(),
                   title: '',
                   showTitle: false,
                   color: AppColors.chartCategoryColor(e.key),
-                  radius: 28,
+                  radius: sectionRadius,
                 );
               }).toList(),
               pieTouchData: PieTouchData(

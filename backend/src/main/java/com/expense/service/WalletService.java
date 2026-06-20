@@ -25,6 +25,7 @@ public class WalletService {
 
     private final WalletRepository walletRepository;
     private final UserService userService;
+    private final WalletBalanceService walletBalanceService;
 
     public List<WalletDto> getAll() {
         User user = userService.getCurrentUserEntity();
@@ -152,11 +153,15 @@ public class WalletService {
     }
 
     private WalletDto mapToDto(Wallet wallet) {
+        User user = wallet.getUser();
+        Long userId = user != null ? user.getId() : userService.getCurrentUserEntity().getId();
+        BigDecimal currentBalance = walletBalanceService.getCurrentBalance(userId, wallet);
         return WalletDto.builder()
                 .id(wallet.getId())
                 .name(wallet.getName())
                 .currencyCode(wallet.getCurrencyCode())
                 .initialBalance(wallet.getInitialBalance())
+                .currentBalance(currentBalance)
                 .isDefault(wallet.getIsDefault())
                 .createdAt(wallet.getCreatedAt())
                 .build();

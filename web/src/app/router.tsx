@@ -20,7 +20,7 @@ import { WalletsPage } from '@/pages/wallets/WalletsPage';
 import { RecurringPage } from '@/pages/recurring/RecurringPage';
 import { AddTransactionPage } from '@/pages/transaction/AddTransactionPage';
 import { AnalyticsPage } from '@/pages/analytics/AnalyticsPage';
-import { MilestonesPage } from '@/pages/milestones/MilestonesPage';
+import { SavingGoalsPage } from '@/pages/saving-goals/SavingGoalsPage';
 import { SpendingForecastPage } from '@/pages/forecast/SpendingForecastPage';
 import { ProfilePage } from '@/pages/profile/ProfilePage';
 
@@ -68,7 +68,7 @@ export const router = createBrowserRouter([
               { path: 'transactions/:id/edit', element: <AddTransactionPage /> },
               { path: 'analytics', element: <AnalyticsPage /> },
               { path: 'spending-forecast', element: <SpendingForecastPage /> },
-              { path: 'milestones', element: <MilestonesPage /> },
+              { path: 'saving-goals', element: <SavingGoalsPage /> },
               { path: 'profile', element: <ProfilePage /> },
             ],
           },

@@ -11,6 +11,8 @@ import 'package:expense_manager/domain/models/transaction.dart';
 import 'package:expense_manager/domain/repositories/transaction_repository.dart';
 import 'package:expense_manager/core/providers/app_providers.dart';
 import 'package:expense_manager/core/utils/api_error.dart';
+import 'package:expense_manager/presentation/widgets/transactions/transaction_list_item.dart';
+import 'package:expense_manager/presentation/widgets/transactions/transaction_widgets.dart';
 
 class TransactionsTab extends ConsumerStatefulWidget {
   const TransactionsTab({super.key});
@@ -35,10 +37,9 @@ class _TransactionsTabState extends ConsumerState<TransactionsTab> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await ref.read(syncServiceProvider).syncAllIfOnline();
+      await _loadCategories();
       if (!mounted) return;
       _loadTransactions(reset: true);
-      _loadCategories();
     });
     _scrollController.addListener(_onScroll);
   }
@@ -52,9 +53,22 @@ class _TransactionsTabState extends ConsumerState<TransactionsTab> {
 
   Future<void> _loadCategories() async {
     try {
+      await ref.read(syncServiceProvider).syncAllIfOnline();
       final cats = await ref.read(categoryRepositoryProvider).getAll();
       if (mounted) setState(() => _categories = cats);
     } catch (_) {}
+  }
+
+  List<Category> _categoriesForFilterSheet() {
+    final type = _filters?.type;
+    if (type == null) return _categories;
+    if (type == 'EXPENSE') {
+      return _categories.where((c) => c.type == CategoryType.expense).toList();
+    }
+    if (type == 'INCOME') {
+      return _categories.where((c) => c.type == CategoryType.income).toList();
+    }
+    return _categories;
   }
 
   Future<void> _loadTransactions({bool reset = false}) async {
@@ -121,6 +135,65 @@ class _TransactionsTabState extends ConsumerState<TransactionsTab> {
     });
   }
 
+  void _setTypeFilter(String? type) {
+    setState(() {
+      _filters = TransactionFilters(
+        type: type,
+        categoryId: _filters?.categoryId,
+        startDate: _filters?.startDate,
+        endDate: _filters?.endDate,
+      );
+    });
+    _loadTransactions(reset: true);
+  }
+
+  int _categoryIndex(int categoryId) {
+    final i = _categories.indexWhere((c) => c.id == categoryId);
+    return i >= 0 ? i : 0;
+  }
+
+  Widget? _flatListItem(
+    BuildContext context,
+    List<TransactionDateGroup> groups,
+    int index,
+    List<Transaction> displayList,
+  ) {
+    var cursor = 0;
+    for (final group in groups) {
+      if (index == cursor) {
+        return TransactionDateHeader(
+          label: group.label,
+          count: group.items.length,
+          dayTotal: dayNetTotal(group.items),
+        );
+      }
+      cursor++;
+      for (final t in group.items) {
+        if (index == cursor) {
+          return TransactionListItem(
+            transaction: t,
+            categoryIndex: _categoryIndex(t.category.id),
+            onTap: () => Navigator.pushNamed(
+              context,
+              AppRouter.addTransaction,
+              arguments: t,
+            ).then((_) {
+              if (mounted) {
+                ref.read(transactionListRefreshTriggerProvider.notifier).state++;
+              }
+            }),
+            onLongPress: () {
+              HapticUtils.medium();
+              _showActionSheet(context, t);
+            },
+          );
+        }
+        cursor++;
+      }
+    }
+    return null;
+  }
+
   List<Transaction> get _filteredBySearch {
     final q = _searchController.text.trim().toLowerCase();
     if (q.isEmpty) return _transactions;
@@ -129,6 +202,46 @@ class _TransactionsTabState extends ConsumerState<TransactionsTab> {
       final cat = t.category.name.toLowerCase();
       return desc.contains(q) || cat.contains(q);
     }).toList();
+  }
+
+  void _showActionSheet(BuildContext context, Transaction t) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.all(24),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_rounded),
+              title: const Text('Sửa'),
+              onTap: () {
+                Navigator.pop(ctx);
+                Navigator.pushNamed(context, AppRouter.addTransaction, arguments: t)
+                    .then((_) {
+                  if (mounted) {
+                    ref.read(transactionListRefreshTriggerProvider.notifier).state++;
+                  }
+                });
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.delete_rounded, color: AppColors.accent),
+              title: Text('Xóa', style: TextStyle(color: AppColors.accent)),
+              onTap: () {
+                Navigator.pop(ctx);
+                _confirmDelete(context, t);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -147,6 +260,14 @@ class _TransactionsTabState extends ConsumerState<TransactionsTab> {
       if (prev != null && prev != next) _loadTransactions(reset: true);
     });
     final displayList = _filteredBySearch;
+    final groups = groupTransactionsByDate(displayList);
+    final summary = computeTransactionSummary(displayList);
+    final hasAdvancedFilter = _filters?.categoryId != null ||
+        _filters?.startDate != null ||
+        _filters?.endDate != null;
+    final contentLen = groups.fold<int>(0, (sum, g) => sum + 1 + g.items.length);
+    final showLoader = _hasMore && _isLoading;
+    final flatLen = contentLen + (showLoader ? 1 : 0);
 
     return Scaffold(
       body: Container(
@@ -159,7 +280,10 @@ class _TransactionsTabState extends ConsumerState<TransactionsTab> {
         ),
         child: SafeArea(
           child: RefreshIndicator(
-            onRefresh: () => _loadTransactions(reset: true),
+            onRefresh: () async {
+              await _loadCategories();
+              await _loadTransactions(reset: true);
+            },
             child: CustomScrollView(
               controller: _scrollController,
               slivers: [
@@ -198,7 +322,7 @@ class _TransactionsTabState extends ConsumerState<TransactionsTab> {
                                     style: GoogleFonts.nunito(fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
                                   ),
                                   Text(
-                                    'Lịch sử thu chi',
+                                    'Lịch sử thu chi · nhóm theo ngày',
                                     style: GoogleFonts.nunito(fontSize: 13, color: AppColors.textSecondary),
                                   ),
                                 ],
@@ -206,6 +330,15 @@ class _TransactionsTabState extends ConsumerState<TransactionsTab> {
                             ),
                           ],
                         ),
+                        if (displayList.isNotEmpty) ...[
+                          const SizedBox(height: 16),
+                          TransactionSummaryBar(
+                            totalIncome: summary.totalIncome,
+                            totalExpense: summary.totalExpense,
+                            balance: summary.balance,
+                            count: summary.count,
+                          ),
+                        ],
                         const SizedBox(height: 16),
                         TextField(
                           controller: _searchController,
@@ -215,18 +348,38 @@ class _TransactionsTabState extends ConsumerState<TransactionsTab> {
                             prefixIcon: const Icon(Icons.search_rounded),
                             filled: true,
                             fillColor: Colors.white,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide(color: AppColors.textMuted.withValues(alpha: 0.15)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide(color: AppColors.textMuted.withValues(alpha: 0.15)),
+                            ),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                           ),
                         ),
                         const SizedBox(height: 12),
+                        TransactionTypeChips(
+                          selectedType: _filters?.type,
+                          onChanged: _setTypeFilter,
+                        ),
+                        const SizedBox(height: 4),
                         Row(
                           children: [
                             IconButton(
                               onPressed: () => _showFilterSheet(context),
                               icon: Icon(
                                 Icons.filter_list_rounded,
-                                color: _filters != null ? AppColors.primary : AppColors.textMuted,
+                                color: hasAdvancedFilter ? AppColors.primary : AppColors.textMuted,
+                              ),
+                              style: IconButton.styleFrom(
+                                side: BorderSide(
+                                  color: hasAdvancedFilter
+                                      ? AppColors.primary
+                                      : AppColors.textMuted.withValues(alpha: 0.25),
+                                ),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               ),
                             ),
                             if (_filters != null)
@@ -257,47 +410,70 @@ class _TransactionsTabState extends ConsumerState<TransactionsTab> {
                 else if (displayList.isEmpty && !_isLoading)
                   SliverFillRemaining(
                     child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.receipt_long_rounded, size: 64, color: AppColors.textMuted),
-                          const SizedBox(height: 16),
-                          Text(
-                            _searchController.text.isNotEmpty ? 'Không tìm thấy kết quả' : 'Chưa có giao dịch',
-                            style: GoogleFonts.nunito(fontSize: 16, color: AppColors.textSecondary),
-                          ),
-                          const SizedBox(height: 8),
-                          TextButton(
-                            onPressed: () {
-                              if (_searchController.text.isNotEmpty) {
-                                _searchController.clear();
-                                setState(() {});
-                              } else {
-                                Navigator.pushNamed(context, AppRouter.addTransaction).then((_) => _loadTransactions(reset: true));
-                              }
-                            },
-                            child: Text(_searchController.text.isNotEmpty ? 'Xóa tìm kiếm' : 'Thêm giao dịch đầu tiên'),
-                          ),
-                        ],
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.receipt_long_rounded, size: 64, color: AppColors.textMuted),
+                            const SizedBox(height: 16),
+                            Text(
+                              _searchController.text.isNotEmpty || _filters != null
+                                  ? 'Không tìm thấy kết quả'
+                                  : 'Chưa có giao dịch',
+                              style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _searchController.text.isNotEmpty
+                                  ? 'Thử từ khóa khác hoặc xóa bộ lọc'
+                                  : 'Bắt đầu ghi chép thu chi của bạn',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.nunito(fontSize: 13, color: AppColors.textSecondary),
+                            ),
+                            const SizedBox(height: 12),
+                            TextButton(
+                              onPressed: () {
+                                if (_searchController.text.isNotEmpty || _filters != null) {
+                                  _searchController.clear();
+                                  _clearFilters();
+                                } else {
+                                  Navigator.pushNamed(context, AppRouter.addTransaction)
+                                      .then((_) {
+                                    if (mounted) {
+                                      ref.read(transactionListRefreshTriggerProvider.notifier).state++;
+                                    }
+                                  });
+                                }
+                              },
+                              child: Text(
+                                _searchController.text.isNotEmpty || _filters != null
+                                    ? 'Xóa bộ lọc'
+                                    : 'Thêm giao dịch đầu tiên',
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   )
                 else
-                  SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        if (index == displayList.length) {
-                          return _isLoading
-                              ? const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()))
-                              : const SizedBox();
-                        }
-                        return _TransactionItem(
-                          transaction: displayList[index],
-                          onEdit: () => Navigator.pushNamed(context, AppRouter.addTransaction, arguments: displayList[index]).then((_) => _loadTransactions(reset: true)),
-                          onDelete: () => _confirmDelete(context, displayList[index]),
-                        );
-                      },
-                      childCount: displayList.length + (_hasMore && _isLoading ? 1 : 0),
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          if (showLoader && index == contentLen) {
+                            return const Padding(
+                              padding: EdgeInsets.all(24),
+                              child: Center(child: CircularProgressIndicator()),
+                            );
+                          }
+                          return _flatListItem(context, groups, index, displayList) ??
+                              const SizedBox.shrink();
+                        },
+                        childCount: flatLen,
+                      ),
                     ),
                   ),
               ],
@@ -308,12 +484,18 @@ class _TransactionsTabState extends ConsumerState<TransactionsTab> {
     );
   }
 
-  void _showFilterSheet(BuildContext context) {
+  Future<void> _showFilterSheet(BuildContext context) async {
     HapticUtils.selection();
-    String? type = _filters?.type;
+    await _loadCategories();
+    if (!context.mounted) return;
+
     int? categoryId = _filters?.categoryId;
     DateTime? startDate = _filters?.startDate;
     DateTime? endDate = _filters?.endDate;
+    final sheetCategories = _categoriesForFilterSheet();
+    if (categoryId != null && !sheetCategories.any((c) => c.id == categoryId)) {
+      categoryId = null;
+    }
 
     showModalBottomSheet(
       context: context,
@@ -333,10 +515,9 @@ class _TransactionsTabState extends ConsumerState<TransactionsTab> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Lọc giao dịch', style: GoogleFonts.nunito(fontSize: 20, fontWeight: FontWeight.w700)),
+                  Text('Lọc nâng cao', style: GoogleFonts.nunito(fontSize: 20, fontWeight: FontWeight.w700)),
                   TextButton(
                     onPressed: () {
-                      type = null;
                       categoryId = null;
                       startDate = null;
                       endDate = null;
@@ -346,35 +527,37 @@ class _TransactionsTabState extends ConsumerState<TransactionsTab> {
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-              Text('Loại', style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.w600)),
               const SizedBox(height: 8),
-              Row(
-                children: [
-                  _FilterChip(label: 'Tất cả', selected: type == null, onTap: () => setModalState(() => type = null)),
-                  const SizedBox(width: 8),
-                  _FilterChip(label: 'Chi tiêu', selected: type == 'EXPENSE', onTap: () => setModalState(() => type = 'EXPENSE')),
-                  const SizedBox(width: 8),
-                  _FilterChip(label: 'Thu nhập', selected: type == 'INCOME', onTap: () => setModalState(() => type = 'INCOME')),
-                ],
+              Text(
+                'Danh mục và khoảng thời gian. Loại thu/chi chọn ở trên danh sách.',
+                style: GoogleFonts.nunito(fontSize: 13, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 16),
               Text('Danh mục', style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.w600)),
               const SizedBox(height: 8),
-              SizedBox(
-                height: 100,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: [
-                    _FilterChip(label: 'Tất cả', selected: categoryId == null, onTap: () => setModalState(() => categoryId = null)),
-                    ..._categories.map((c) => _FilterChip(
-                          label: c.name,
-                          selected: categoryId == c.id,
-                          onTap: () => setModalState(() => categoryId = c.id),
-                        )),
-                  ],
+              if (sheetCategories.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Text(
+                    'Chưa có danh mục. Kéo xuống để làm mới danh sách giao dịch.',
+                    style: GoogleFonts.nunito(fontSize: 13, color: AppColors.textSecondary),
+                  ),
+                )
+              else
+                SizedBox(
+                  height: 100,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      _FilterChip(label: 'Tất cả', selected: categoryId == null, onTap: () => setModalState(() => categoryId = null)),
+                      ...sheetCategories.map((c) => _FilterChip(
+                            label: c.name,
+                            selected: categoryId == c.id,
+                            onTap: () => setModalState(() => categoryId = c.id),
+                          )),
+                    ],
+                  ),
                 ),
-              ),
               const SizedBox(height: 16),
               Row(
                 children: [
@@ -407,10 +590,14 @@ class _TransactionsTabState extends ConsumerState<TransactionsTab> {
                 child: ElevatedButton(
                   onPressed: () {
                     Navigator.pop(ctx);
-                    _applyFilters(type, categoryId, startDate, endDate);
+                    _applyFilters(_filters?.type, categoryId, startDate, endDate);
                   },
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, padding: const EdgeInsets.symmetric(vertical: 16)),
-                  child: const Text('Áp dụng'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: Text('Áp dụng', style: GoogleFonts.nunito(fontWeight: FontWeight.w700)),
                 ),
               ),
             ],
@@ -462,100 +649,7 @@ class _FilterChip extends StatelessWidget {
       label: Text(label),
       selected: selected,
       onSelected: (_) => onTap(),
-      selectedColor: AppColors.primary.withOpacity(0.2),
-    );
-  }
-}
-
-class _TransactionItem extends StatelessWidget {
-  final Transaction transaction;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-
-  const _TransactionItem({required this.transaction, required this.onEdit, required this.onDelete});
-
-  @override
-  Widget build(BuildContext context) {
-    final isIncome = transaction.type == TransactionType.income;
-    return GestureDetector(
-      onTap: onEdit,
-      onLongPress: () {
-        HapticUtils.medium();
-        showModalBottomSheet(
-          context: context,
-          backgroundColor: Colors.transparent,
-          builder: (ctx) => Container(
-            padding: const EdgeInsets.all(24),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.edit_rounded),
-                  title: const Text('Sửa'),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    onEdit();
-                  },
-                ),
-                ListTile(
-                  leading: Icon(Icons.delete_rounded, color: AppColors.accent),
-                  title: Text('Xóa', style: TextStyle(color: AppColors.accent)),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    onDelete();
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-        decoration: BoxDecoration(
-          color: AppColors.cardBackground,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: AppColors.softShadow,
-        ),
-        child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          leading: Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: (isIncome ? AppColors.income : AppColors.expense).withOpacity(0.2),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(
-              isIncome ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
-              color: isIncome ? AppColors.income : AppColors.expense,
-              size: 24,
-            ),
-          ),
-          title: Text(
-            transaction.description ?? transaction.category.name,
-            style: GoogleFonts.nunito(fontWeight: FontWeight.w600, fontSize: 16),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          subtitle: Text(
-            '${transaction.category.name} • ${DateFormat('dd/MM').format(transaction.transactionDate)}',
-            style: GoogleFonts.nunito(fontSize: 12, color: AppColors.textSecondary),
-          ),
-          trailing: Text(
-            '${isIncome ? '+' : '-'}${NumberFormat.compact(locale: 'vi').format(transaction.amount)} ₫',
-            style: GoogleFonts.nunito(
-              fontWeight: FontWeight.w700,
-              fontSize: 16,
-              color: isIncome ? AppColors.income : AppColors.expense,
-            ),
-          ),
-        ),
-      ),
+      selectedColor: AppColors.primary.withValues(alpha: 0.2),
     );
   }
 }

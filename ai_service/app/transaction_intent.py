@@ -62,6 +62,15 @@ def infer_transaction_type(text: str, category: str) -> str:
 
 def adjust_category_for_type(text: str, category: str, tx_type: str) -> str:
     """Thu nhập từ quà/mừng/sinh nhật không nên gán danh mục chi Quà tặng."""
+    if tx_type == "EXPENSE" and category in _INCOME_LABELS:
+        from .rules import rule_based_category
+
+        rb = rule_based_category(text)
+        if rb not in _INCOME_LABELS and rb != "Khác":
+            return rb
+        if _EXPENSE_GIVE_PATTERN.search((text or "").lower()):
+            return "Quà tặng"
+        return "Khác"
     if tx_type != "INCOME":
         return category
     if category in _INCOME_LABELS:

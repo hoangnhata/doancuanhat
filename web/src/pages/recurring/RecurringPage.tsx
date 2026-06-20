@@ -17,6 +17,7 @@ import { DeleteOutlineRounded } from '@mui/icons-material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { GradientBackground } from '@/components/common/GradientBackground';
+import { CategorySelectField } from '@/components/category/CategorySelectField';
 import { extractApiError } from '@/lib/api';
 import { formatMoney } from '@/lib/format';
 import * as categoryService from '@/services/categoryService';
@@ -168,20 +169,12 @@ export function RecurringPage() {
               margin="normal"
               InputLabelProps={{ shrink: true }}
             />
-            <TextField
-              select
-              fullWidth
-              label="Danh mục"
+            <CategorySelectField
+              categories={cats}
               value={categoryId}
-              onChange={(e) => setCategoryId(Number(e.target.value))}
-              margin="normal"
-            >
-              {cats.map((c) => (
-                <MenuItem key={c.id} value={c.id}>
-                  {c.name}
-                </MenuItem>
-              ))}
-            </TextField>
+              onChange={setCategoryId}
+              label="Danh mục"
+            />
             {createMut.error && (
               <Typography color="error" variant="body2">
                 {extractApiError(createMut.error)}

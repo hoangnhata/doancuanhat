@@ -1,5 +1,6 @@
 .venv/
 __pycache__/
+.env
 *.py[cod]
 *$py.class
 .ipynb_checkpoints/
@@ -12,6 +13,7 @@ models/grid_runs/
 models/classify_*.pt
 models/classify_checkpoint.pt
 models/classify_best.pt
+models/ocr_reco_ckpt.pt
 models/IMPROVEMENT_REPORT.md
 models/MODEL_IMPROVEMENT_REPORT.md
 models/grid_search_results.json

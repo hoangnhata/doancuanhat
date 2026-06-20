@@ -21,9 +21,16 @@ public interface BudgetRepository extends JpaRepository<Budget, Long> {
             Long userId, LocalDate date, LocalDate date2);
 
     @Query("SELECT b FROM Budget b WHERE b.user.id = :userId " +
-           "AND :date BETWEEN b.startDate AND b.endDate")
+           "AND :date BETWEEN b.startDate AND b.endDate " +
+           "AND (b.isActive IS NULL OR b.isActive = true)")
     List<Budget> findActiveBudgetsByUserIdAndDate(@Param("userId") Long userId, @Param("date") LocalDate date);
 
-    Optional<Budget> findByUserIdAndCategoryIdAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
-            Long userId, Long categoryId, LocalDate date, LocalDate date2);
+    @Query("SELECT b FROM Budget b WHERE b.user.id = :userId " +
+           "AND b.category.id = :categoryId " +
+           "AND :date BETWEEN b.startDate AND b.endDate " +
+           "AND (b.isActive IS NULL OR b.isActive = true)")
+    List<Budget> findActiveByUserIdAndCategoryIdAndDate(
+            @Param("userId") Long userId,
+            @Param("categoryId") Long categoryId,
+            @Param("date") LocalDate date);
 }

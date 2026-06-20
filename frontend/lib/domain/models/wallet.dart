@@ -3,6 +3,7 @@ class Wallet {
   final String name;
   final String currencyCode;
   final double initialBalance;
+  final double? currentBalance;
   final bool isDefault;
   final DateTime? createdAt;
 
@@ -11,6 +12,7 @@ class Wallet {
     required this.name,
     required this.currencyCode,
     required this.initialBalance,
+    this.currentBalance,
     required this.isDefault,
     this.createdAt,
   });
@@ -21,6 +23,7 @@ class Wallet {
       name: json['name'] as String,
       currencyCode: json['currencyCode'] as String? ?? 'VND',
       initialBalance: (json['initialBalance'] as num?)?.toDouble() ?? 0,
+      currentBalance: (json['currentBalance'] as num?)?.toDouble(),
       isDefault: json['isDefault'] as bool? ?? false,
       createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt'] as String) : null,
     );

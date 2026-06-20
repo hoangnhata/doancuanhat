@@ -1,5 +1,7 @@
 package com.expense.dto.budget;
 
+import com.expense.entity.enums.PeriodType;
+import com.expense.entity.enums.SpendingLimitStatus;
 import com.expense.dto.category.CategoryDto;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -18,14 +20,22 @@ public class BudgetDto {
 
     private Long id;
     private BigDecimal amount;
+    private BigDecimal limitAmount;
     private LocalDate startDate;
     private LocalDate endDate;
     private CategoryDto category;
     private String note;
     private LocalDateTime createdAt;
+    private PeriodType periodType;
+    private Integer warningThresholdPercent;
+    private Boolean isActive;
+    private Boolean alertsEnabled;
 
-    /** Tổng đã chi (giao dịch EXPENSE) trong kỳ ngân sách, cùng danh mục */
+    /** Tổng chi EXPENSE trong kỳ hạn mức */
     private BigDecimal spentAmount;
-    /** Ngân sách − đã chi (âm nếu vượt) */
+    private BigDecimal currentSpent;
     private BigDecimal remainingAmount;
+    private BigDecimal usagePercent;
+    private SpendingLimitStatus status;
+    private String statusMessage;
 }

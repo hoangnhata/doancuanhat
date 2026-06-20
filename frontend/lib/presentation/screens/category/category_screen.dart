@@ -6,6 +6,7 @@ import 'package:expense_manager/domain/models/category.dart';
 import 'package:expense_manager/domain/repositories/category_repository.dart';
 import 'package:expense_manager/core/providers/app_providers.dart';
 import 'package:expense_manager/presentation/widgets/common/card_container.dart';
+import 'package:expense_manager/presentation/widgets/category/category_select_field.dart';
 
 class CategoryScreen extends ConsumerStatefulWidget {
   const CategoryScreen({super.key});
@@ -169,35 +170,33 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
                   ),
                 )
               else
-                ...categories.map(
-                  (c) => Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      color: AppColors.cardBackground,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: AppColors.softShadow,
-                    ),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                      leading: Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: (_showExpense ? AppColors.expense : AppColors.income).withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(14),
+                ...categories.asMap().entries.map(
+                  (entry) {
+                    final i = entry.key;
+                    final c = entry.value;
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: AppColors.cardBackground,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: AppColors.softShadow,
+                      ),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                        leading: CategoryIconBadge(
+                          name: c.name,
+                          icon: c.icon,
+                          colorIndex: i,
+                          size: 48,
                         ),
-                        child: Icon(
-                          Icons.category_rounded,
-                          color: _showExpense ? AppColors.expense : AppColors.income,
+                        title: Text(c.name, style: GoogleFonts.nunito(fontWeight: FontWeight.w600)),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete_outline_rounded, color: AppColors.accent),
+                          onPressed: () => _deleteCategory(c),
                         ),
                       ),
-                      title: Text(c.name, style: GoogleFonts.nunito(fontWeight: FontWeight.w600)),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete_outline_rounded, color: AppColors.accent),
-                        onPressed: () => _deleteCategory(c),
-                      ),
-                    ),
-                  ),
+                    );
+                  },
                 ),
             ],
           ),

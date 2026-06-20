@@ -45,6 +45,9 @@ public class User {
     @Column(name = "bot_personality", length = 20)
     private String botPersonality; // HAPPY, SAD, ANGRY
 
+    @Column(name = "bot_setup_completed")
+    private Boolean botSetupCompleted;
+
     @Column(name = "onboarding_completed")
     private Boolean onboardingCompleted;
 
@@ -57,8 +60,23 @@ public class User {
     @Column(name = "initial_balance", precision = 15, scale = 2)
     private BigDecimal initialBalance;
 
-    @Column(name = "savings_goal_monthly", precision = 15, scale = 2)
-    private BigDecimal savingsGoalMonthly;
+    @Column(name = "wallet_setup_completed")
+    private Boolean walletSetupCompleted;
+
+    @Column(name = "saving_goal_setup_completed")
+    private Boolean savingGoalSetupCompleted;
+
+    @Column(name = "saving_goal_setup_skipped")
+    private Boolean savingGoalSetupSkipped;
+
+    @Column(name = "spending_limit_setup_completed")
+    private Boolean spendingLimitSetupCompleted;
+
+    @Column(name = "spending_limit_setup_skipped")
+    private Boolean spendingLimitSetupSkipped;
+
+    @Column(name = "onboarding_step", length = 30)
+    private String onboardingStep;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

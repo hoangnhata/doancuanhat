@@ -1,0 +1,11 @@
+# Profile production — kích hoạt: SPRING_PROFILES_ACTIVE=prod
+logging:
+  level:
+    root: INFO
+    com.expense: INFO
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+
+springdoc:
+  swagger-ui:
+    enabled: true

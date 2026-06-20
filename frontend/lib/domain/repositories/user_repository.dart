@@ -7,10 +7,16 @@ abstract class UserRepository {
     String? fullName,
     String? phone,
     String? botPersonality,
+    bool? botSetupCompleted,
     bool? onboardingCompleted,
+    bool? walletSetupCompleted,
+    bool? savingGoalSetupCompleted,
+    bool? savingGoalSetupSkipped,
+    bool? spendingLimitSetupCompleted,
+    bool? spendingLimitSetupSkipped,
+    String? onboardingStep,
     String? walletName,
     String? currencyCode,
     double? initialBalance,
-    double? savingsGoalMonthly,
   });
 }

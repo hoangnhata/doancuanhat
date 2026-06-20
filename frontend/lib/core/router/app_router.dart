@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:expense_manager/presentation/screens/splash_screen.dart';
 import 'package:expense_manager/presentation/screens/onboarding/welcome_screen.dart';
 import 'package:expense_manager/presentation/screens/onboarding/onboarding_bot_screen.dart';
+import 'package:expense_manager/presentation/screens/onboarding/onboarding_wallet_screen.dart';
+import 'package:expense_manager/presentation/screens/onboarding/onboarding_saving_goal_screen.dart';
+import 'package:expense_manager/presentation/screens/onboarding/onboarding_spending_limit_screen.dart';
+import 'package:expense_manager/presentation/screens/saving_goals/saving_goals_screen.dart';
 import 'package:expense_manager/presentation/screens/auth/login_screen.dart';
 import 'package:expense_manager/presentation/screens/auth/register_screen.dart';
 import 'package:expense_manager/presentation/screens/auth/verify_registration_screen.dart';
@@ -12,7 +16,6 @@ import 'package:expense_manager/domain/models/transaction.dart';
 import 'package:expense_manager/presentation/screens/transaction/add_transaction_screen.dart';
 import 'package:expense_manager/presentation/screens/category/category_screen.dart';
 import 'package:expense_manager/presentation/screens/budget/budget_screen.dart';
-import 'package:expense_manager/presentation/screens/analytics/milestones_screen.dart';
 import 'package:expense_manager/presentation/screens/analytics/analytics_screen.dart';
 import 'package:expense_manager/presentation/screens/forecast/spending_forecast_screen.dart';
 import 'package:expense_manager/presentation/screens/recurring/recurring_screen.dart';
@@ -23,6 +26,9 @@ class AppRouter {
   static const String splash = '/';
   static const String welcome = '/welcome';
   static const String onboardingBot = '/onboarding/bot';
+  static const String onboardingWallet = '/onboarding/wallet';
+  static const String onboardingSavingGoal = '/onboarding/saving-goal';
+  static const String onboardingSpendingLimit = '/onboarding/spending-limit';
   static const String login = '/login';
   static const String register = '/register';
   static const String verifyRegistration = '/register/verify';
@@ -32,11 +38,11 @@ class AppRouter {
   static const String addTransaction = '/add-transaction';
   static const String categories = '/categories';
   static const String budget = '/budget';
-  static const String milestones = '/milestones';
   static const String analytics = '/analytics';
   static const String spendingForecast = '/spending-forecast';
   static const String recurring = '/recurring';
   static const String wallets = '/wallets';
+  static const String savingGoals = '/saving-goals';
   static const String profile = '/profile';
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
@@ -48,6 +54,12 @@ class AppRouter {
         return _slideRoute(const WelcomeScreen(), welcome);
       case onboardingBot:
         return _slideRoute(const OnboardingBotScreen(), onboardingBot);
+      case onboardingWallet:
+        return _slideRoute(const OnboardingWalletScreen(), onboardingWallet);
+      case onboardingSavingGoal:
+        return _slideRoute(const OnboardingSavingGoalScreen(), onboardingSavingGoal);
+      case onboardingSpendingLimit:
+        return _slideRoute(const OnboardingSpendingLimitScreen(), onboardingSpendingLimit);
       case login:
         return _slideRoute(const LoginScreen(), login);
       case register:
@@ -73,8 +85,6 @@ class AppRouter {
         return _slideRoute(const CategoryScreen(), categories);
       case budget:
         return _slideRoute(const BudgetScreen(), budget);
-      case milestones:
-        return _slideRoute(const MilestonesScreen(), milestones);
       case analytics:
         return _slideRoute(const AnalyticsScreen(), analytics);
       case spendingForecast:
@@ -83,6 +93,8 @@ class AppRouter {
         return _slideRoute(const RecurringScreen(), recurring);
       case wallets:
         return _slideRoute(const WalletsScreen(), wallets);
+      case savingGoals:
+        return _slideRoute(const SavingGoalsScreen(), savingGoals);
       case profile:
         return _slideRoute(const ProfileScreen(), profile);
       default:

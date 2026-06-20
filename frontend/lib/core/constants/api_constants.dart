@@ -34,6 +34,11 @@ class ApiConstants {
   static String budgetById(int id) => '/budgets/$id';
   static const String budgetsActive = '/budgets/active';
 
+  static const String spendingLimits = '/spending-limits';
+  static String spendingLimitById(int id) => '/spending-limits/$id';
+  static const String spendingLimitsAlerts = '/spending-limits/alerts';
+  static const String spendingLimitsCheckTransaction = '/spending-limits/check-transaction';
+
   static const String statisticsDay = '/statistics/day';
   static const String statisticsMonth = '/statistics/month';
   static const String statisticsYear = '/statistics/year';
@@ -46,6 +51,12 @@ class ApiConstants {
 
   static const String wallets = '/wallets';
   static String walletById(int id) => '/wallets/$id';
+
+  static const String savingGoals = '/saving-goals';
+  static String savingGoalById(int id) => '/saving-goals/$id';
+  static String savingGoalDeposit(int id) => '/saving-goals/$id/deposit';
+  static String savingGoalWithdraw(int id) => '/saving-goals/$id/withdraw';
+  static String savingGoalTransactions(int id) => '/saving-goals/$id/transactions';
 
   static const String recurringTransactions = '/recurring-transactions';
   static String recurringTransactionById(int id) => '/recurring-transactions/$id';

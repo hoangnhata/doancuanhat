@@ -71,9 +71,44 @@ CREATE TABLE IF NOT EXISTS budgets (
     category_id BIGINT NOT NULL,
     user_id BIGINT NOT NULL,
     note VARCHAR(255),
+    period_type VARCHAR(20) DEFAULT 'MONTHLY',
+    warning_threshold_percent INT DEFAULT 80,
+    is_active BOOLEAN DEFAULT TRUE,
+    alerts_enabled BOOLEAN DEFAULT TRUE,
     created_at DATETIME NOT NULL,
     updated_at DATETIME,
     FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE RESTRICT,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     INDEX idx_budgets_user_date (user_id, start_date, end_date)
+);
+
+CREATE TABLE IF NOT EXISTS saving_goals (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(150) NOT NULL,
+    target_amount DECIMAL(15,2) NOT NULL,
+    current_amount DECIMAL(15,2) NOT NULL DEFAULT 0,
+    target_date DATE NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+    note VARCHAR(500),
+    user_id BIGINT NOT NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_saving_goals_user (user_id)
+);
+
+CREATE TABLE IF NOT EXISTS saving_transactions (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    saving_goal_id BIGINT NOT NULL,
+    wallet_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    amount DECIMAL(15,2) NOT NULL,
+    type VARCHAR(20) NOT NULL,
+    note VARCHAR(500),
+    created_at DATETIME NOT NULL,
+    FOREIGN KEY (saving_goal_id) REFERENCES saving_goals(id) ON DELETE CASCADE,
+    FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE RESTRICT,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_saving_tx_goal (saving_goal_id),
+    INDEX idx_saving_tx_wallet (wallet_id)
 );

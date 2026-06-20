@@ -6,6 +6,7 @@ import 'package:expense_manager/core/theme/app_theme.dart';
 import 'package:expense_manager/core/providers/app_providers.dart';
 import 'package:expense_manager/core/router/app_router.dart';
 import 'package:expense_manager/presentation/screens/onboarding/onboarding_bot_screen.dart';
+import 'package:expense_manager/presentation/widgets/onboarding/onboarding_form_widgets.dart';
 
 class OnboardingWalletScreen extends ConsumerStatefulWidget {
   const OnboardingWalletScreen({super.key});
@@ -80,15 +81,7 @@ class _OnboardingWalletScreenState extends ConsumerState<OnboardingWalletScreen>
       },
       child: Scaffold(
         appBar: AppBar(
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_rounded),
-            onPressed: () {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const OnboardingBotScreen()),
-              );
-            },
-          ),
+          automaticallyImplyLeading: false,
           title: Text(
             'Thiết lập ví',
             style: GoogleFonts.nunito(fontWeight: FontWeight.w700),
@@ -108,6 +101,14 @@ class _OnboardingWalletScreenState extends ConsumerState<OnboardingWalletScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Text(
+                    'Bước 2/4',
+                    style: GoogleFonts.nunito(
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   Center(
                     child: Container(
                       padding: const EdgeInsets.all(16),
@@ -174,7 +175,16 @@ class _OnboardingWalletScreenState extends ConsumerState<OnboardingWalletScreen>
                       ),
                     ),
                   ),
-                  const SizedBox(height: 48),
+                  const SizedBox(height: 24),
+                  OnboardingBackStepButton(
+                    onPressed: () {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (_) => const OnboardingBotScreen()),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 8),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -183,13 +193,12 @@ class _OnboardingWalletScreenState extends ConsumerState<OnboardingWalletScreen>
                               walletName: _nameController.text.trim(),
                               currencyCode: _currency,
                               initialBalance: _initialBalance,
-                              onboardingCompleted: true,
+                              walletSetupCompleted: true,
                             );
                         if (!context.mounted) return;
-                        Navigator.pushNamedAndRemoveUntil(
+                        Navigator.pushReplacementNamed(
                           context,
-                          AppRouter.main,
-                          (r) => false,
+                          AppRouter.onboardingSavingGoal,
                         );
                       },
                       style: ElevatedButton.styleFrom(

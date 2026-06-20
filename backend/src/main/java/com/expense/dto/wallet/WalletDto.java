@@ -19,5 +19,6 @@ public class WalletDto {
     private String currencyCode;
     private BigDecimal initialBalance;
     private Boolean isDefault;
+    private BigDecimal currentBalance;
     private LocalDateTime createdAt;
 }

@@ -1,0 +1,8 @@
+{
+  "unicode_form": "NFC",
+  "lowercase": true,
+  "strip_accents": false,
+  "normalize_money": true,
+  "expand_abbreviations": true,
+  "max_repeat_char": 3
+}

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:expense_manager/core/di/injection.dart';
 import 'package:expense_manager/core/router/app_router.dart';
+import 'package:expense_manager/core/router/onboarding_route.dart';
 import 'package:expense_manager/core/theme/app_theme.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -70,10 +71,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
     });
     final user = await localStorage.getUser();
     if (!mounted) return;
-    final needsOnboarding = user?.onboardingCompleted != true;
-    Navigator.of(context).pushReplacementNamed(
-      needsOnboarding ? AppRouter.onboardingBot : AppRouter.main,
-    );
+    Navigator.of(context).pushReplacementNamed(resolveOnboardingRoute(user));
   }
 
   @override

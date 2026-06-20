@@ -235,9 +235,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
 
             HapticUtils.medium();
             Navigator.pushNamed(context, AppRouter.addTransaction).then((_) {
-              ref
-                  .read(transactionListRefreshTriggerProvider.notifier)
-                  .state++;
+              ref.read(transactionListRefreshTriggerProvider.notifier).state++;
             });
           },
           backgroundColor: AppColors.primary,

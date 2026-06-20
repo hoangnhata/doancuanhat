@@ -7,8 +7,14 @@ export async function patchProfile(body: {
   fullName?: string;
   phone?: string | null;
   botPersonality?: 'HAPPY' | 'SAD' | 'ANGRY';
-  savingsGoalMonthly?: number | null;
+  botSetupCompleted?: boolean;
   onboardingCompleted?: boolean;
+  walletSetupCompleted?: boolean;
+  savingGoalSetupCompleted?: boolean;
+  savingGoalSetupSkipped?: boolean;
+  spendingLimitSetupCompleted?: boolean;
+  spendingLimitSetupSkipped?: boolean;
+  onboardingStep?: string;
   walletName?: string;
   currencyCode?: string;
   initialBalance?: number;

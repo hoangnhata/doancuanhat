@@ -2,36 +2,25 @@ import {
   Alert,
   Box,
   Button,
-  Card,
-  CardContent,
   CircularProgress,
   Stack,
-  TextField,
   ToggleButton,
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
-import { PictureAsPdfRounded, TableChartRounded } from '@mui/icons-material';
+import { AnalyticsOutlined, PictureAsPdfRounded, TableChartRounded } from '@mui/icons-material';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Legend,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
 import { GradientBackground } from '@/components/common/GradientBackground';
-import { formatMoney } from '@/lib/format';
+import { PeriodFilterBar } from '@/components/common/PeriodFilterBar';
+import { AnalyticsSummaryCard } from '@/components/analytics/AnalyticsSummaryCard';
+import { CategoryBreakdownChart } from '@/components/analytics/CategoryBreakdownChart';
+import { ChartCard } from '@/components/analytics/ChartCard';
+import { DailyFlowChart } from '@/components/analytics/DailyFlowChart';
+import { SectionLabel } from '@/components/dashboard/SectionLabel';
 import * as statisticsService from '@/services/statisticsService';
 import { downloadTransactionExport } from '@/services/exportService';
-import { chartCategoryColor, palette } from '@/theme';
+import { palette } from '@/theme';
 
 export function AnalyticsPage() {
   const now = new Date();
@@ -42,7 +31,7 @@ export function AnalyticsPage() {
   const [exporting, setExporting] = useState<'excel' | 'pdf' | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
 
-  const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+  const periodLabel = period === 'month' ? `Tháng ${month}/${year}` : `Năm ${year}`;
 
   const exportRange = useMemo(() => {
     if (period === 'month') {
@@ -66,19 +55,20 @@ export function AnalyticsPage() {
     }
   }
 
-  const { data: stats } = useQuery({
-    queryKey: ['analytics', period, year, month, showExpense],
+  const { data: expenseStats, isLoading: loadingExp } = useQuery({
+    queryKey: ['analytics', period, year, month, 'EXPENSE'],
     queryFn: () =>
       period === 'month'
-        ? statisticsService.getStatsByMonth(
-            year,
-            month,
-            showExpense ? 'EXPENSE' : 'INCOME',
-          )
-        : statisticsService.getStatsByYear(
-            year,
-            showExpense ? 'EXPENSE' : 'INCOME',
-          ),
+        ? statisticsService.getStatsByMonth(year, month, 'EXPENSE')
+        : statisticsService.getStatsByYear(year, 'EXPENSE'),
+  });
+
+  const { data: incomeStats, isLoading: loadingInc } = useQuery({
+    queryKey: ['analytics', period, year, month, 'INCOME'],
+    queryFn: () =>
+      period === 'month'
+        ? statisticsService.getStatsByMonth(year, month, 'INCOME')
+        : statisticsService.getStatsByYear(year, 'INCOME'),
   });
 
   const dailyRange = useMemo(() => {
@@ -96,14 +86,17 @@ export function AnalyticsPage() {
     enabled: period === 'month' && !!dailyRange.start,
   });
 
-  const chartData = useMemo(
-    () =>
-      (stats?.byCategory ?? []).map((c) => ({
-        name: c.categoryName,
-        amount: c.amount,
-      })),
-    [stats],
-  );
+  const totalIncome = incomeStats?.totalIncome ?? 0;
+  const totalExpense = expenseStats?.totalExpense ?? 0;
+  const balance = totalIncome - totalExpense;
+
+  const chartData = useMemo(() => {
+    const src = showExpense ? expenseStats?.byCategory : incomeStats?.byCategory;
+    return (src ?? []).map((c) => ({
+      name: c.categoryName,
+      amount: c.amount,
+    }));
+  }, [showExpense, expenseStats, incomeStats]);
 
   const barData = useMemo(
     () =>
@@ -115,13 +108,23 @@ export function AnalyticsPage() {
     [daily],
   );
 
+  const loading = loadingExp || loadingInc;
+
   return (
     <GradientBackground>
-      <Box sx={{ p: 2, pb: 10, maxWidth: 900, mx: 'auto' }}>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" gap={2} mb={1}>
-          <Typography variant="h6" fontWeight={800}>
-            Phân tích
-          </Typography>
+      <Box sx={{ p: { xs: 2, md: 3 }, pb: 10, maxWidth: 900, mx: 'auto' }}>
+        <Stack direction="row" alignItems="flex-start" justifyContent="space-between" gap={2} mb={2}>
+          <Box>
+            <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
+              <AnalyticsOutlined sx={{ color: palette.primary.main }} />
+              <Typography variant="h5" fontWeight={800}>
+                Phân tích
+              </Typography>
+            </Stack>
+            <Typography variant="body2" color="text.secondary">
+              Thống kê chi tiết theo kỳ, danh mục và ngày
+            </Typography>
+          </Box>
           <Stack direction="row" spacing={1} flexShrink={0}>
             <Button
               size="small"
@@ -131,6 +134,7 @@ export function AnalyticsPage() {
               }
               disabled={exporting !== null}
               onClick={() => void handleExport('excel')}
+              sx={{ borderRadius: 2 }}
             >
               Excel
             </Button>
@@ -142,6 +146,7 @@ export function AnalyticsPage() {
               }
               disabled={exporting !== null}
               onClick={() => void handleExport('pdf')}
+              sx={{ borderRadius: 2 }}
             >
               PDF
             </Button>
@@ -154,123 +159,58 @@ export function AnalyticsPage() {
           </Alert>
         )}
 
-        <ToggleButtonGroup
-          exclusive
-          value={period}
-          onChange={(_, v) => v && setPeriod(v)}
-          sx={{ mb: 2 }}
-        >
-          <ToggleButton value="month">Tháng</ToggleButton>
-          <ToggleButton value="year">Năm</ToggleButton>
-        </ToggleButtonGroup>
+        <PeriodFilterBar
+          period={period}
+          onPeriodChange={setPeriod}
+          year={year}
+          month={month}
+          onMonthYearChange={(y, m) => {
+            setYear(y);
+            setMonth(m);
+          }}
+          onYearChange={setYear}
+        />
 
-        {period === 'month' ? (
-          <TextField
-            type="month"
-            label="Kỳ"
-            value={monthStr}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (!v) return;
-              const [y, m] = v.split('-').map(Number);
-              setYear(y);
-              setMonth(m);
-            }}
-            InputLabelProps={{ shrink: true }}
-            fullWidth
-            sx={{ mb: 2 }}
-          />
+        {loading ? (
+          <Box display="flex" justifyContent="center" py={8}>
+            <CircularProgress />
+          </Box>
         ) : (
-          <TextField
-            type="number"
-            label="Năm"
-            value={year}
-            onChange={(e) => setYear(Number(e.target.value))}
-            fullWidth
-            sx={{ mb: 2 }}
-          />
-        )}
+          <>
+            <Box sx={{ mt: 2.5 }}>
+              <AnalyticsSummaryCard
+                periodLabel={periodLabel}
+                balance={balance}
+                totalIncome={totalIncome}
+                totalExpense={totalExpense}
+              />
+            </Box>
 
-        <ToggleButtonGroup
-          exclusive
-          value={showExpense ? 'exp' : 'inc'}
-          onChange={(_, v) => v && setShowExpense(v === 'exp')}
-          sx={{ mb: 2 }}
-        >
-          <ToggleButton value="exp">Chi phí</ToggleButton>
-          <ToggleButton value="inc">Thu nhập</ToggleButton>
-        </ToggleButtonGroup>
+            <SectionLabel>Phân bổ theo loại</SectionLabel>
+            <ToggleButtonGroup
+              fullWidth
+              exclusive
+              value={showExpense ? 'exp' : 'inc'}
+              onChange={(_, v) => v && setShowExpense(v === 'exp')}
+              sx={{ mb: 2 }}
+            >
+              <ToggleButton value="exp">Chi phí</ToggleButton>
+              <ToggleButton value="inc">Thu nhập</ToggleButton>
+            </ToggleButtonGroup>
 
-        {stats && (
-          <Card sx={{ mb: 2 }} elevation={2}>
-            <CardContent>
-              <Typography color="text.secondary">Cân đối kỳ</Typography>
-              <Typography variant="h5" fontWeight={800} color="primary">
-                {formatMoney(stats.balance)}
-              </Typography>
-              <Stack direction="row" spacing={2} mt={1}>
-                <Typography color="error.main" fontWeight={700}>
-                  Chi: {formatMoney(stats.totalExpense)}
-                </Typography>
-                <Typography sx={{ color: palette.income }} fontWeight={700}>
-                  Thu: {formatMoney(stats.totalIncome)}
-                </Typography>
-              </Stack>
-            </CardContent>
-          </Card>
-        )}
+            <ChartCard
+              subtitle="DANH MỤC"
+              title={showExpense ? 'Chi tiêu theo danh mục' : 'Thu nhập theo danh mục'}
+            >
+              <CategoryBreakdownChart data={chartData} isExpense={showExpense} />
+            </ChartCard>
 
-        <Card sx={{ mb: 2 }} elevation={2}>
-          <CardContent>
-            <Typography fontWeight={700} gutterBottom>
-              {showExpense ? 'Chi theo danh mục' : 'Thu theo danh mục'}
-            </Typography>
-            {chartData.length === 0 ? (
-              <Typography color="text.secondary">Chưa có dữ liệu</Typography>
-            ) : (
-              <Box height={260}>
-                <ResponsiveContainer>
-                  <PieChart>
-                    <Pie
-                      data={chartData}
-                      dataKey="amount"
-                      nameKey="name"
-                      innerRadius={45}
-                      outerRadius={80}
-                    >
-                      {chartData.map((_, i) => (
-                        <Cell key={i} fill={chartCategoryColor(i)} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(v: number) => formatMoney(v)} />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </Box>
+            {period === 'month' && barData.length > 0 && (
+              <ChartCard subtitle="XU HƯỚNG" title="Thu / chi theo ngày trong tháng">
+                <DailyFlowChart data={barData} />
+              </ChartCard>
             )}
-          </CardContent>
-        </Card>
-
-        {period === 'month' && barData.length > 0 && (
-          <Card elevation={2}>
-            <CardContent>
-              <Typography fontWeight={700} gutterBottom>
-                Thu / chi theo ngày
-              </Typography>
-              <Box height={280}>
-                <ResponsiveContainer>
-                  <BarChart data={barData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="day" />
-                    <YAxis />
-                    <Tooltip formatter={(v: number) => formatMoney(v)} />
-                    <Bar dataKey="Chi" fill={palette.expense} />
-                    <Bar dataKey="Thu" fill={palette.income} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </Box>
-            </CardContent>
-          </Card>
+          </>
         )}
       </Box>
     </GradientBackground>

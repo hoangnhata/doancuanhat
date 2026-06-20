@@ -18,10 +18,16 @@ public class UserDto {
     private String email;
     private String phone;
     private String botPersonality;
+    private Boolean botSetupCompleted;
     private Boolean onboardingCompleted;
     private String walletName;
     private String currencyCode;
     private java.math.BigDecimal initialBalance;
-    private java.math.BigDecimal savingsGoalMonthly;
+    private Boolean walletSetupCompleted;
+    private Boolean savingGoalSetupCompleted;
+    private Boolean savingGoalSetupSkipped;
+    private Boolean spendingLimitSetupCompleted;
+    private Boolean spendingLimitSetupSkipped;
+    private String onboardingStep;
     private LocalDateTime createdAt;
 }

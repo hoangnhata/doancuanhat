@@ -23,8 +23,12 @@ class ExportRepository {
     final bytes = await _api.getBytes(ApiConstants.exportTransactions, params: params);
     final f = format.toLowerCase();
     final ext = (f == 'excel' || f == 'xlsx') ? 'xlsx' : 'pdf';
-    final now = DateTime.now();
-    final filename = 'bao-cao-giao-dich-${now.year}${now.month.toString().padLeft(2, '0')}.$ext';
+    String fmt(DateTime d) =>
+        '${d.year}${d.month.toString().padLeft(2, '0')}${d.day.toString().padLeft(2, '0')}';
+    final rangeTag = (startDate != null && endDate != null)
+        ? '${fmt(startDate)}-${fmt(endDate)}'
+        : fmt(DateTime.now());
+    final filename = 'bao-cao-giao-dich-$rangeTag.$ext';
 
     await downloadFile(bytes, filename);
   }

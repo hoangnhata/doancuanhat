@@ -1,0 +1,27 @@
+{
+  "architecture": "transformer",
+  "window": 30,
+  "horizon": 7,
+  "mean_log": 12.30325961651134,
+  "median_log": 12.292598904869262,
+  "std_log": 0.36100325066782124,
+  "d_model": 64,
+  "n_heads": 4,
+  "n_enc_layers": 3,
+  "n_dec_layers": 2,
+  "d_ff": 256,
+  "dropout": 0.1,
+  "input_size": 14,
+  "n_category": 5,
+  "mean_category": [
+    0.3696356638763536,
+    0.16424630698674755,
+    0.19279590483753858,
+    0.13845503163643683,
+    0.13486709266292346
+  ],
+  "use_instance_norm": true,
+  "inst_norm_recent_k": 14,
+  "val_mae_vnd": 4692,
+  "val_mape_pct": 1.76
+}

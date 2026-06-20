@@ -25,9 +25,6 @@ export function ProfilePage() {
 
   const [fullName, setFullName] = useState(user?.fullName ?? '');
   const [phone, setPhone] = useState(user?.phone ?? '');
-  const [goal, setGoal] = useState(
-    user?.savingsGoalMonthly != null ? String(user?.savingsGoalMonthly) : '',
-  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,7 +52,6 @@ export function ProfilePage() {
   useEffect(() => {
     setFullName(user?.fullName ?? '');
     setPhone(user?.phone ?? '');
-    setGoal(user?.savingsGoalMonthly != null ? String(user.savingsGoalMonthly) : '');
     setSelectedPersonality(
       (user?.botPersonality?.toUpperCase() as 'HAPPY' | 'SAD' | 'ANGRY') ?? 'HAPPY',
     );
@@ -66,12 +62,9 @@ export function ProfilePage() {
     setSaving(true);
     setError(null);
     try {
-      const n = goal.trim().length ? Number(goal) : null;
-      const safeGoal = n != null && Number.isFinite(n) ? n : null;
       await userService.patchProfile({
         fullName: fullName.trim(),
         phone: phone.trim().length ? phone.trim() : null,
-        savingsGoalMonthly: safeGoal,
       });
       await refreshUser();
     } catch (e) {
@@ -219,17 +212,6 @@ export function ProfilePage() {
               <Stack spacing={0.5}>
                 <Typography fontWeight={700}>Số điện thoại</Typography>
                 <TextField value={phone ?? ''} onChange={(e) => setPhone(e.target.value)} fullWidth />
-              </Stack>
-
-              <Stack spacing={0.5}>
-                <Typography fontWeight={700}>Mục tiêu tiết kiệm/tháng</Typography>
-                <TextField
-                  value={goal}
-                  onChange={(e) => setGoal(e.target.value)}
-                  fullWidth
-                  placeholder="Ví dụ: 5000000"
-                  inputMode="numeric"
-                />
               </Stack>
 
               <Divider />

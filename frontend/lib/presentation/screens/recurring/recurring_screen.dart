@@ -10,6 +10,7 @@ import 'package:expense_manager/domain/models/transaction.dart';
 import 'package:expense_manager/core/utils/snackbar_utils.dart' show showSuccessSnackBar, showErrorSnackBar;
 import 'package:expense_manager/core/utils/haptic_utils.dart';
 import 'package:expense_manager/domain/repositories/recurring_transaction_repository.dart';
+import 'package:expense_manager/presentation/widgets/category/category_select_field.dart';
 
 class RecurringScreen extends ConsumerStatefulWidget {
   const RecurringScreen({super.key});
@@ -119,14 +120,13 @@ class _RecurringScreenState extends ConsumerState<RecurringScreen> {
                     decoration: const InputDecoration(labelText: 'Số tiền (₫)'),
                   ),
                   const SizedBox(height: 12),
-                  DropdownButtonFormField<Category>(
-                    value: selectedCategory,
-                    decoration: const InputDecoration(labelText: 'Danh mục'),
-                    items: (type == 'INCOME'
+                  CategorySelectField(
+                    categories: (type == 'INCOME'
                             ? categories.where((c) => c.type == CategoryType.income)
                             : categories.where((c) => c.type == CategoryType.expense))
-                        .map((c) => DropdownMenuItem(value: c, child: Text(c.name)))
                         .toList(),
+                    value: selectedCategory,
+                    label: 'Danh mục',
                     onChanged: (c) => setModalState(() => selectedCategory = c),
                   ),
                   const SizedBox(height: 12),

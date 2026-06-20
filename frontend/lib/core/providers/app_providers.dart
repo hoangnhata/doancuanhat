@@ -10,6 +10,8 @@ import 'package:expense_manager/domain/repositories/budget_repository.dart';
 import 'package:expense_manager/domain/repositories/statistics_repository.dart';
 import 'package:expense_manager/domain/repositories/recurring_transaction_repository.dart';
 import 'package:expense_manager/domain/repositories/wallet_repository.dart';
+import 'package:expense_manager/domain/repositories/saving_goal_repository.dart';
+import 'package:expense_manager/domain/repositories/spending_limit_repository.dart';
 import 'package:expense_manager/data/repositories/export_repository_impl.dart';
 import 'package:expense_manager/data/sync/sync_service.dart';
 import 'package:expense_manager/core/services/notification_service.dart';
@@ -29,6 +31,8 @@ final exportRepositoryProvider = Provider<ExportRepository>((ref) => exportRepos
 final recurringTransactionRepositoryProvider =
     Provider<RecurringTransactionRepository>((ref) => recurringTransactionRepository);
 final walletRepositoryProvider = Provider<WalletRepository>((ref) => walletRepository);
+final savingGoalRepositoryProvider = Provider<SavingGoalRepository>((ref) => savingGoalRepository);
+final spendingLimitRepositoryProvider = Provider<SpendingLimitRepository>((ref) => spendingLimitRepository);
 
 final selectedWalletIdProvider = StateProvider<int?>((ref) => null);
 

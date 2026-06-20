@@ -16,7 +16,7 @@ class SyncService {
   final ApiClient _api;
   final LocalStorage _storage;
 
-  bool _running = false;
+  Future<void>? _syncFuture;
 
   static const entityCategory = 'category';
   static const entityWallet = 'wallet';
@@ -42,8 +42,19 @@ class SyncService {
   Future<void> syncAllIfOnline() async {
     if (!await _isOnline()) return;
     if (!await _storage.isLoggedIn()) return;
-    if (_running) return;
-    _running = true;
+    if (_syncFuture != null) {
+      await _syncFuture;
+      return;
+    }
+    _syncFuture = _runSync();
+    try {
+      await _syncFuture;
+    } finally {
+      _syncFuture = null;
+    }
+  }
+
+  Future<void> _runSync() async {
     try {
       await pushOutbox();
       await pullAll();
@@ -52,8 +63,6 @@ class SyncService {
       // Nếu token hết hạn / thiếu quyền thì bỏ qua sync để app không crash.
       if (status == 401 || status == 403) return;
       if (!_isNetworkError(e)) rethrow;
-    } finally {
-      _running = false;
     }
   }
 

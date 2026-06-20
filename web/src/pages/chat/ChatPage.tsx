@@ -1,36 +1,44 @@
-import {
-  Box,
-  Button,
-  Card,
-  Chip,
-  CircularProgress,
-  Fab,
-  Stack,
-  TextField,
-  ToggleButton,
-  ToggleButtonGroup,
-  Typography,
-} from '@mui/material';
-import {
-  ChatBubbleOutlineRounded,
-  EditNoteRounded,
-  SendRounded,
-  SmartToyRounded,
-  BoltRounded,
-} from '@mui/icons-material';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { format } from 'date-fns';
+import { Box } from '@mui/material';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { GradientBackground } from '@/components/common/GradientBackground';
+import { ChatHeader } from '@/components/chat/ChatHeader';
+import { ChatInputBar } from '@/components/chat/ChatInputBar';
 import {
-  parseBotPersonality,
-  PersonalityRobotAvatar,
-} from '@/components/robot/PersonalityRobotAvatar';
+  ChatMessageBubble,
+  ChatTypingIndicator,
+} from '@/components/chat/ChatMessageBubble';
+import { ChatModeToggle } from '@/components/chat/ChatModeToggle';
+import { ChatTipsPanel } from '@/components/chat/ChatTipsPanel';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSelectedWallet } from '@/contexts/SelectedWalletContext';
 import { extractApiError } from '@/lib/api';
+import { formatMoneyFull } from '@/lib/format';
+import { palette } from '@/theme';
 import * as categoryService from '@/services/categoryService';
 import * as transactionService from '@/services/transactionService';
-import { palette } from '@/theme';
+import type { AICategorizeResponse, Category } from '@/types/models';
+
+/** Giống app Flutter / AddTransactionPage — tách nhiều khoản trong một câu. */
+const BATCH_PATTERN = /(;|\n|\+|&)|,\s*(?!\d)|\s+và\s+/i;
+
+function findCategoryId(
+  categories: Category[],
+  categoryName: string,
+  suggested?: string | null,
+): number | null {
+  const terms = [categoryName, suggested].filter((s): s is string => Boolean(s?.trim()));
+  for (const term of terms) {
+    const lower = term.toLowerCase();
+    const exact = categories.find((c) => c.name.toLowerCase() === lower);
+    if (exact) return exact.id;
+    const partial = categories.find((c) => {
+      const n = c.name.toLowerCase();
+      return n.includes(lower) || lower.includes(n);
+    });
+    if (partial) return partial.id;
+  }
+  return categories[0]?.id ?? null;
+}
 
 type Role = 'bot' | 'user';
 type ChatMode = 'record' | 'ask';
@@ -59,23 +67,24 @@ const WELCOME: Msg[] = [
   },
 ];
 
-const QUICK_QUESTIONS = [
-  'Tháng này tôi tiêu nhiều nhất vào đâu?',
-  'Tôi nên cắt giảm khoản nào?',
-  'Tóm tắt chi tiêu tháng này của tôi.',
-  'Ngân sách của tôi còn lại bao nhiêu?',
-];
-
 export function ChatPage() {
   const { user } = useAuth();
+  const qc = useQueryClient();
+  const { selectedWalletId } = useSelectedWallet();
   const [messages, setMessages] = useState<Msg[]>(WELCOME);
   const [input, setInput] = useState('');
   const [mode, setMode] = useState<ChatMode>('record');
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const { data: expenseCats = [] } = useQuery({
     queryKey: ['categories', 'EXPENSE'],
     queryFn: () => categoryService.fetchCategories('EXPENSE'),
+  });
+
+  const { data: incomeCats = [] } = useQuery({
+    queryKey: ['categories', 'INCOME'],
+    queryFn: () => categoryService.fetchCategories('INCOME'),
   });
 
   const categorize = useMutation({
@@ -91,7 +100,7 @@ export function ChatPage() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, busy]);
 
   async function sendRecord(text: string) {
     const t = text.trim();
@@ -102,16 +111,77 @@ export function ChatPage() {
       { id: crypto.randomUUID(), role: 'user', text: t, time: new Date() },
     ]);
     try {
-      const res = await categorize.mutateAsync(t);
-      const catName =
-        expenseCats.find((c) => c.id === res.categoryId)?.name ?? res.categoryName;
-      const botText = res.rollyResponse
-        ? `${res.rollyResponse}\n\n— Gợi ý: ${catName}${res.amount != null ? `, ${res.amount}` : ''}`
-        : `Đã phân loại: ${catName}${res.amount != null ? ` · ${res.amount}₫` : ''}. Bạn có thể xác nhận trong màn hình thêm giao dịch.`;
-      setMessages((m) => [
-        ...m,
-        { id: crypto.randomUUID(), role: 'bot', text: botText, time: new Date() },
-      ]);
+      const isBatch = BATCH_PATTERN.test(t);
+      const results: AICategorizeResponse[] = isBatch
+        ? await transactionService.aiCategorizeBatch(t, user?.botPersonality)
+        : [await categorize.mutateAsync(t)];
+
+      const savedLines: string[] = [];
+      for (const res of results) {
+        const isIncome = (res.transactionType ?? 'EXPENSE').toUpperCase() === 'INCOME';
+        const pool = isIncome ? incomeCats : expenseCats;
+        const categoryId =
+          res.categoryId ??
+          findCategoryId(pool, res.categoryName, res.suggestedCategoryName);
+        if (categoryId == null || res.amount == null || res.amount <= 0) continue;
+
+        const catName =
+          pool.find((c) => c.id === categoryId)?.name ??
+          res.categoryName ??
+          res.suggestedCategoryName ??
+          'Danh mục';
+        const txDate = res.transactionDate ?? new Date().toISOString().slice(0, 10);
+        await transactionService.createTransaction({
+          type: isIncome ? 'INCOME' : 'EXPENSE',
+          amount: res.amount,
+          description: res.description?.trim() || undefined,
+          transactionDate: txDate,
+          categoryId,
+          walletId: selectedWalletId,
+        });
+        savedLines.push(
+          `${isIncome ? 'Thu' : 'Chi'} · ${catName} · ${formatMoneyFull(res.amount)}`,
+        );
+      }
+
+      if (savedLines.length > 0) {
+        await qc.invalidateQueries({ queryKey: ['transactions'] });
+        await qc.invalidateQueries({ queryKey: ['statistics'] });
+        await qc.invalidateQueries({ queryKey: ['wallets'] });
+
+        let botText: string;
+        if (savedLines.length === 1 && !isBatch) {
+          const res = results[0];
+          const isIncome = (res.transactionType ?? 'EXPENSE').toUpperCase() === 'INCOME';
+          const pool = isIncome ? incomeCats : expenseCats;
+          const catName =
+            pool.find((c) => c.id === res.categoryId)?.name ??
+            res.categoryName ??
+            'Danh mục';
+          botText = res.rollyResponse
+            ? `${res.rollyResponse}\n\n✓ Đã ghi: ${catName} · ${formatMoneyFull(res.amount!)}`
+            : `Đã ghi nhận! ✓ ${res.description?.trim() || catName} · ${formatMoneyFull(res.amount!)}`;
+        } else {
+          botText = `✓ Đã ghi ${savedLines.length} giao dịch:\n${savedLines.map((line) => `• ${line}`).join('\n')}`;
+        }
+        setMessages((m) => [
+          ...m,
+          { id: crypto.randomUUID(), role: 'bot', text: botText, time: new Date() },
+        ]);
+      } else {
+        setMessages((m) => [
+          ...m,
+          {
+            id: crypto.randomUUID(),
+            role: 'bot',
+            text: isBatch
+              ? 'Không ghi được giao dịch nào. Thử tách từng khoản: "ăn trưa 50k, lương 5 tr".'
+              : 'Tôi chưa hiểu rõ. Thử "ăn trưa 50k" hoặc thêm giao dịch thủ công.',
+            subtext: 'Thử nhập số tiền rõ ràng (ví dụ: 50k, 100 nghìn)',
+            time: new Date(),
+          },
+        ]);
+      }
     } catch (e) {
       setMessages((m) => [
         ...m,
@@ -135,19 +205,12 @@ export function ChatPage() {
     ]);
     try {
       const res = await askChat.mutateAsync(t);
-      const subtext =
-        res.engine === 'gemini'
-          ? 'Trả lời bởi Gemini AI'
-          : res.engine === 'rule'
-            ? 'Trả lời rule-based (chưa cấu hình GEMINI_API_KEY)'
-            : undefined;
       setMessages((m) => [
         ...m,
         {
           id: crypto.randomUUID(),
           role: 'bot',
           text: res.reply,
-          subtext,
           time: new Date(),
         },
       ]);
@@ -164,237 +227,156 @@ export function ChatPage() {
     }
   }
 
+  async function fetchSuggestions() {
+    if (busy || loadingSuggestions) return;
+    setLoadingSuggestions(true);
+    try {
+      const suggestions = await transactionService.fetchSuggestions();
+      if (suggestions.length === 0) {
+        setMessages((m) => [
+          ...m,
+          {
+            id: crypto.randomUUID(),
+            role: 'bot',
+            text: 'Chưa đủ dữ liệu chi tiêu để gợi ý. Hãy ghi thêm vài giao dịch nhé!',
+            time: new Date(),
+          },
+        ]);
+        return;
+      }
+      const lines = suggestions.map(
+        (s) =>
+          `• ${s.categoryName}: ${formatMoneyFull(s.amount)}\n  ${s.suggestion}\n  (Có thể giảm ~${s.percentPossible}%)`,
+      );
+      setMessages((m) => [
+        ...m,
+        {
+          id: crypto.randomUUID(),
+          role: 'bot',
+          text: `💡 Gợi ý tiết kiệm (30 ngày qua):\n\n${lines.join('\n\n')}`,
+          time: new Date(),
+        },
+      ]);
+    } catch (e) {
+      setMessages((m) => [
+        ...m,
+        {
+          id: crypto.randomUUID(),
+          role: 'bot',
+          text: 'Không thể tải gợi ý: ' + extractApiError(e),
+          time: new Date(),
+        },
+      ]);
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  }
+
   function send() {
     if (mode === 'ask') sendAsk(input);
     else sendRecord(input);
   }
 
+  const subtitle =
+    mode === 'ask'
+      ? 'Hỏi Natta về chi tiêu cá nhân của bạn'
+      : 'Gõ chi tiêu tự nhiên — AI gợi ý danh mục';
+
   return (
-    <GradientBackground>
+    <Box
+      sx={{
+        position: 'absolute',
+        inset: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        background: (theme) =>
+          theme.palette.mode === 'dark'
+            ? `linear-gradient(180deg, ${theme.palette.background.default} 0%, #0C1222 100%)`
+            : `linear-gradient(165deg, ${palette.gradientStart} 0%, ${palette.gradientMid} 38%, ${palette.backgroundDefault} 72%, #FFFFFF 100%)`,
+      }}
+    >
       <Box
         sx={{
-          width: '100%',
-          maxWidth: { xs: '100%', sm: 800, md: 1000, lg: 1280, xl: 1440 },
-          mx: 'auto',
-          minHeight: '70vh',
+          flex: 1,
           display: 'flex',
           flexDirection: 'column',
-          px: { xs: 2, sm: 3, md: 4, lg: 5 },
-          py: { xs: 4, sm: 5, md: 7 },
-          pb: 12,
+          minHeight: 0,
+          pt: { xs: 2.5, sm: 3, md: 4 },
+          px: { xs: 1.5, sm: 2, md: 2.5 },
+          pb: { xs: 10, md: 3 },
         }}
       >
-        <Stack
-          direction="row"
-          alignItems="center"
-          spacing={2}
-          mb={2}
+        <Box
           sx={{
-            p: 2,
-            borderRadius: 3,
-            background: `linear-gradient(135deg, ${palette.primary.main}14, transparent)`,
-            border: `1px solid ${palette.primary.main}22`,
-            bgcolor: 'background.paper',
-            boxShadow: 1,
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            minHeight: 0,
+            maxHeight: '100%',
+            bgcolor: '#fff',
+            borderRadius: { xs: 2.5, md: 3 },
+            border: `1px solid ${palette.primary.main}20`,
+            boxShadow: palette.shadowLift,
+            overflow: 'hidden',
           }}
         >
+          <Box sx={{ flexShrink: 0 }}>
+            <ChatHeader botPersonality={user?.botPersonality} subtitle={subtitle} />
+            <ChatModeToggle mode={mode} onChange={setMode} />
+          </Box>
+
           <Box
             sx={{
-              p: 0.75,
-              borderRadius: 2,
-              bgcolor: 'background.paper',
-              boxShadow: 1,
+              flex: 1,
+              display: 'flex',
+              minHeight: 0,
+              borderTop: `1px solid ${palette.primary.main}12`,
             }}
           >
-            <PersonalityRobotAvatar
-              type={parseBotPersonality(user?.botPersonality)}
-              size={52}
-              animated
-            />
-          </Box>
-          <Box flex={1} minWidth={0}>
-            <Typography variant="h6" fontWeight={800}>
-              Trợ lý AI Natta
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {mode === 'ask'
-                ? 'Hỏi Natta về chi tiêu cá nhân của bạn'
-                : 'Gõ chi tiêu tự nhiên — AI gợi ý danh mục'}
-            </Typography>
-          </Box>
-          <SmartToyRounded sx={{ color: 'primary.main', opacity: 0.5 }} />
-        </Stack>
-
-        <ToggleButtonGroup
-          value={mode}
-          exclusive
-          fullWidth
-          size="small"
-          color="primary"
-          onChange={(_, v) => {
-            if (v) setMode(v);
-          }}
-          sx={{ mb: 2 }}
-        >
-          <ToggleButton value="record">
-            <EditNoteRounded sx={{ mr: 1, fontSize: 18 }} /> Ghi chi tiêu
-          </ToggleButton>
-          <ToggleButton value="ask">
-            <ChatBubbleOutlineRounded sx={{ mr: 1, fontSize: 18 }} /> Hỏi Natta
-          </ToggleButton>
-        </ToggleButtonGroup>
-
-        <Stack spacing={1.5} flex={1}>
-          {messages.map((m) => (
-            <Card
-              key={m.id}
+            <Box
               sx={{
-                alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
-                maxWidth: { xs: '100%', sm: '92%', md: 720 },
-                bgcolor:
-                  m.role === 'user' ? `${palette.primary.main}18` : 'background.paper',
-                boxShadow: 2,
+                flex: 1,
+                minWidth: 0,
+                overflowY: 'auto',
+                px: { xs: 2, md: 2.5 },
+                py: { xs: 1.5, md: 2 },
               }}
             >
-              <Box sx={{ p: 2 }}>
-                <Stack direction="row" spacing={1} alignItems="flex-start">
-                  {m.role === 'bot' && (
-                    <Box sx={{ flexShrink: 0, mt: 0.25 }}>
-                      <PersonalityRobotAvatar
-                        type={parseBotPersonality(user?.botPersonality)}
-                        size={36}
-                      />
-                    </Box>
-                  )}
-                  <Box flex={1} minWidth={0}>
-                    <Typography
-                      whiteSpace="pre-wrap"
-                      color="text.primary"
-                      fontSize={15}
-                    >
-                      {m.text}
-                    </Typography>
-                    {m.subtext && (
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        sx={{ display: 'block', mt: 0.5, fontStyle: 'italic' }}
-                      >
-                        {m.subtext}
-                      </Typography>
-                    )}
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                      {format(m.time, 'HH:mm')}
-                    </Typography>
-                  </Box>
-                </Stack>
-              </Box>
-            </Card>
-          ))}
-          {busy && (
-            <Stack direction="row" spacing={1} alignItems="center">
-              <CircularProgress size={20} />
-              <Typography variant="body2" color="text.secondary">
-                {mode === 'ask' ? 'Natta đang suy nghĩ…' : 'Đang phân loại…'}
-              </Typography>
-            </Stack>
-          )}
-          <div ref={bottomRef} />
-        </Stack>
+              {messages.map((m) => (
+                <ChatMessageBubble
+                  key={m.id}
+                  role={m.role}
+                  text={m.text}
+                  time={m.time}
+                  subtext={m.subtext}
+                  botPersonality={user?.botPersonality}
+                />
+              ))}
+              {busy && (
+                <ChatTypingIndicator
+                  label={mode === 'ask' ? 'Natta đang suy nghĩ…' : 'Đang phân loại…'}
+                />
+              )}
+              <div ref={bottomRef} />
+            </Box>
 
-        {mode === 'ask' && (
-          <Box
-            sx={{
-              mt: 2,
-              display: 'flex',
-              gap: 1,
-              overflowX: 'auto',
-              pb: 0.5,
-            }}
-          >
-            {QUICK_QUESTIONS.map((q) => (
-              <Chip
-                key={q}
-                icon={<BoltRounded />}
-                label={q}
-                onClick={() => sendAsk(q)}
-                color="primary"
-                variant="outlined"
-                sx={{ flexShrink: 0, fontWeight: 600 }}
-              />
-            ))}
+            <ChatTipsPanel mode={mode} />
           </Box>
-        )}
 
-        <Stack
-          direction="row"
-          spacing={1.5}
-          alignItems="flex-end"
-          sx={{
-            position: 'sticky',
-            bottom: 0,
-            mt: 2,
-            pt: 2,
-            pb: 0.5,
-            bgcolor: 'background.default',
-          }}
-        >
-          <TextField
-            fullWidth
-            placeholder={
-              mode === 'ask'
-                ? 'Hỏi Natta về chi tiêu của bạn…'
-                : 'Nhập chi tiêu, ví dụ: cơm trưa 45k'
-            }
+          <ChatInputBar
+            mode={mode}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                send();
-              }
-            }}
-            multiline
-            maxRows={3}
-          />
-          <Fab
-            color="primary"
-            size="medium"
-            onClick={send}
+            onChange={setInput}
+            onSend={send}
             disabled={busy}
-            aria-label="Gửi"
-            sx={{
-              flexShrink: 0,
-              width: 48,
-              height: 48,
-              minHeight: 48,
-              boxShadow: '0 2px 10px rgba(2, 136, 209, 0.38)',
-              '&:hover': { boxShadow: '0 4px 14px rgba(2, 136, 209, 0.45)' },
-            }}
-          >
-            <SendRounded sx={{ fontSize: 22 }} />
-          </Fab>
-        </Stack>
-        {mode === 'record' && (
-          <Button
-            size="small"
-            sx={{ mt: 1.5 }}
-            onClick={() =>
-              setMessages((m) => [
-                ...m,
-                {
-                  id: crypto.randomUUID(),
-                  role: 'bot',
-                  text: 'Gợi ý: thử "cafe 30k" hoặc mở Cài đặt để đổi tính cách Natta.',
-                  time: new Date(),
-                },
-              ])
-            }
-          >
-            Gợi ý nhanh
-          </Button>
-        )}
+            onQuickRecord={sendRecord}
+            onQuickAsk={sendAsk}
+            onFetchSuggestions={fetchSuggestions}
+            loadingSuggestions={loadingSuggestions}
+          />
+        </Box>
       </Box>
-    </GradientBackground>
+    </Box>
   );
 }

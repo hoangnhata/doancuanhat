@@ -102,7 +102,19 @@ export function SettingsPage() {
           pb: 10,
         }}
       >
-        <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 1 }}>
+        <Stack
+          direction="row"
+          alignItems="center"
+          spacing={2}
+          sx={{
+            mb: 2,
+            p: { xs: 2, md: 2.5 },
+            borderRadius: 3,
+            bgcolor: '#fff',
+            border: `1px solid ${palette.primary.main}20`,
+            boxShadow: palette.shadowSoft,
+          }}
+        >
           <Box
             sx={{
               p: 1,
@@ -143,7 +155,16 @@ export function SettingsPage() {
           </Box>
         </Stack>
 
-        <Stack spacing={1.5} mt={2}>
+        <Box
+          sx={{
+            bgcolor: '#fff',
+            borderRadius: 3,
+            border: `1px solid ${palette.primary.main}20`,
+            boxShadow: palette.shadowLift,
+            overflow: 'hidden',
+          }}
+        >
+          <Stack spacing={0} sx={{ px: { xs: 1, sm: 2 }, py: 1 }}>
           <SettingsAccordion
             title="Trợ lý Natta"
             icon={<SmartToyRounded color="primary" />}
@@ -179,8 +200,8 @@ export function SettingsPage() {
           >
             <SettingsCard
               icon={<AccountBalanceWalletRounded />}
-              title="Ngân sách"
-              subtitle="Quản lý ngân sách theo danh mục"
+              title="Hạn mức chi tiêu"
+              subtitle="Đặt hạn mức theo danh mục để kiểm soát chi tiêu"
               onClick={() => navigate('/app/budget')}
             />
             <SettingsCard
@@ -194,6 +215,12 @@ export function SettingsPage() {
               title="Quản lý ví"
               subtitle="Thêm, sửa, xóa ví"
               onClick={() => navigate('/app/wallets')}
+            />
+            <SettingsCard
+              icon={<AccountBalanceWalletRounded />}
+              title="Mục tiêu tiết kiệm"
+              subtitle="Ví tiết kiệm nội bộ — nạp, rút, theo dõi tiến độ"
+              onClick={() => navigate('/app/saving-goals')}
             />
             <SettingsCard
               icon={<RepeatRounded />}
@@ -308,7 +335,8 @@ export function SettingsPage() {
               </CardActionArea>
             </Card>
           </SettingsAccordion>
-        </Stack>
+          </Stack>
+        </Box>
       </Box>
 
       <Dialog open={pwdOpen} onClose={() => setPwdOpen(false)} fullWidth>
@@ -399,13 +427,13 @@ function SettingsAccordion({
       <AccordionSummary
         expandIcon={<ExpandMoreRounded />}
         sx={{
-          px: 0,
-          minHeight: 62,
-          py: 0.5,
-          bgcolor: 'transparent',
-          '&.Mui-expanded': { bgcolor: 'transparent' },
-          '& .MuiAccordionSummary-content': { my: 0 },
-        }}
+        px: 1,
+        minHeight: 56,
+        py: 0.5,
+        bgcolor: 'transparent',
+        '&.Mui-expanded': { bgcolor: 'transparent' },
+        '& .MuiAccordionSummary-content': { my: 0.5 },
+      }}
       >
         <Stack direction="row" spacing={1.5} alignItems="center">
           <Box
@@ -428,8 +456,8 @@ function SettingsAccordion({
           </Typography>
         </Stack>
       </AccordionSummary>
-      <AccordionDetails sx={{ px: 0, pt: 0.5, pb: 2 }}>
-        <Stack spacing={1.5} sx={{ px: 0 }}>
+      <AccordionDetails sx={{ px: 1, pt: 0, pb: 1.5 }}>
+        <Stack spacing={1} sx={{ px: 0 }}>
           {children}
         </Stack>
       </AccordionDetails>

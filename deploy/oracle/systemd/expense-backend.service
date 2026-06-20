@@ -1,0 +1,18 @@
+[Unit]
+Description=Expense Manager Backend (Spring Boot)
+After=network.target mysql.service expense-ai.service
+Wants=expense-ai.service
+
+[Service]
+Type=simple
+User=%APP_USER%
+Group=%APP_USER%
+WorkingDirectory=%APP_DIR%/backend
+EnvironmentFile=/etc/expense-manager/production.env
+ExecStart=/usr/bin/java -Xms256m -Xmx768m -jar %APP_DIR%/backend/target/expense-manager-1.0.0.jar
+Restart=always
+RestartSec=15
+TimeoutStartSec=180
+
+[Install]
+WantedBy=multi-user.target

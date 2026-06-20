@@ -10,14 +10,13 @@ import 'package:expense_manager/core/providers/app_providers.dart';
 import 'package:expense_manager/core/theme/app_theme.dart';
 import 'package:expense_manager/core/utils/api_error.dart' show extractErrorMessage;
 import 'package:expense_manager/core/utils/haptic_utils.dart';
+import 'package:expense_manager/domain/models/ai_categorize.dart';
 import 'package:expense_manager/domain/models/ocr_receipt.dart';
 
-/// Hiển thị bottom sheet:
-///   1. Chọn nguồn ảnh (camera/gallery)
-///   2. Hiện preview ảnh + spinner gọi backend OCR
-///   3. Hiển thị kết quả nhận diện, cho user xác nhận hoặc hủy
-///
-/// Trả về [OcrReceiptResult] nếu user xác nhận, ngược lại null.
+/// Quét bill chuyển khoản:
+///   1. OCR → số tiền + ngày
+///   2. User nhập mô tả → AI classify phân loại
+///   3. Trả [OcrReceiptResult] để điền form
 Future<OcrReceiptResult?> showReceiptOcrSheet(BuildContext context, WidgetRef ref) async {
   return showModalBottomSheet<OcrReceiptResult>(
     context: context,
@@ -41,9 +40,25 @@ class _ReceiptOcrSheet extends ConsumerStatefulWidget {
 class _ReceiptOcrSheetState extends ConsumerState<_ReceiptOcrSheet> {
   Uint8List? _imageBytes;
   String? _imageName;
-  bool _isLoading = false;
+  bool _isOcrLoading = false;
+  bool _isClassifyLoading = false;
   String? _error;
-  OcrReceiptResult? _result;
+
+  double? _ocrAmount;
+  DateTime? _ocrDate;
+  double? _ocrConfidence;
+  bool _ocrNeedsReview = false;
+  String? _ocrEngine;
+
+  final _descriptionController = TextEditingController();
+  AICategorizeResult? _classifyResult;
+  String? _classifyError;
+
+  @override
+  void dispose() {
+    _descriptionController.dispose();
+    super.dispose();
+  }
 
   Future<void> _pick(ImageSource source) async {
     HapticUtils.selection();
@@ -61,7 +76,11 @@ class _ReceiptOcrSheetState extends ConsumerState<_ReceiptOcrSheet> {
         _imageBytes = bytes;
         _imageName = picked.name;
         _error = null;
-        _result = null;
+        _ocrAmount = null;
+        _ocrDate = null;
+        _classifyResult = null;
+        _classifyError = null;
+        _descriptionController.clear();
       });
       await _runOcr();
     } catch (e) {
@@ -73,7 +92,7 @@ class _ReceiptOcrSheetState extends ConsumerState<_ReceiptOcrSheet> {
   Future<void> _runOcr() async {
     if (_imageBytes == null) return;
     setState(() {
-      _isLoading = true;
+      _isOcrLoading = true;
       _error = null;
     });
     try {
@@ -84,16 +103,73 @@ class _ReceiptOcrSheetState extends ConsumerState<_ReceiptOcrSheet> {
       );
       if (!mounted) return;
       setState(() {
-        _result = r;
-        _isLoading = false;
+        _ocrAmount = r.amount;
+        _ocrDate = r.transactionDate;
+        _ocrConfidence = r.confidence;
+        _ocrNeedsReview = r.needsReview;
+        _ocrEngine = r.ocrEngine;
+        _isOcrLoading = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = 'Không phân tích được hóa đơn. ${extractErrorMessage(e)}';
-        _isLoading = false;
+        _error = 'Không phân tích được bill chuyển khoản. ${extractErrorMessage(e)}';
+        _isOcrLoading = false;
       });
     }
+  }
+
+  Future<void> _runClassify() async {
+    final text = _descriptionController.text.trim();
+    if (text.isEmpty) {
+      setState(() => _classifyError = 'Vui lòng nhập mô tả chuyển khoản.');
+      return;
+    }
+    setState(() {
+      _isClassifyLoading = true;
+      _classifyError = null;
+    });
+    try {
+      final user = ref.read(currentUserProvider).value;
+      final result = await ref.read(transactionRepositoryProvider).aiCategorize(
+            text,
+            personality: user?.botPersonality,
+          );
+      if (!mounted) return;
+      setState(() {
+        _classifyResult = result;
+        _isClassifyLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _classifyError = 'Không phân loại được. ${extractErrorMessage(e)}';
+        _isClassifyLoading = false;
+      });
+    }
+  }
+
+  bool get _canApply =>
+      _ocrAmount != null &&
+      _ocrAmount! > 0 &&
+      _classifyResult != null &&
+      !_isOcrLoading &&
+      !_isClassifyLoading;
+
+  OcrReceiptResult _buildResult() {
+    final cls = _classifyResult!;
+    return OcrReceiptResult(
+      transactionType: cls.transactionType,
+      amount: _ocrAmount,
+      transactionDate: _ocrDate ?? cls.transactionDate,
+      description: cls.description.isNotEmpty ? cls.description : _descriptionController.text.trim(),
+      categoryName: cls.categoryName,
+      categoryId: cls.categoryId,
+      confidence: _ocrConfidence,
+      needsReview: _ocrNeedsReview || cls.categoryId == null,
+      ocrEngine: _ocrEngine,
+      bankTransfer: true,
+    );
   }
 
   String _money(double? v) {
@@ -108,191 +184,296 @@ class _ReceiptOcrSheetState extends ConsumerState<_ReceiptOcrSheet> {
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.fromLTRB(20, 16, 20, 20 + viewInsets),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Center(
-              child: Container(
-                width: 44,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.textMuted.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.document_scanner_rounded, color: AppColors.primary),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Quét hóa đơn',
-                    style: GoogleFonts.nunito(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: theme.textTheme.bodyLarge?.color,
-                    ),
+                    color: AppColors.textMuted.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close_rounded),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            if (_imageBytes == null) ...[
-              Text(
-                'Chụp ảnh hoặc chọn từ thư viện để AI tự đọc số tiền, ngày và đề xuất danh mục.',
-                style: GoogleFonts.nunito(color: AppColors.textSecondary),
               ),
               const SizedBox(height: 16),
               Row(
                 children: [
-                  Expanded(
-                    child: _SourceButton(
-                      icon: Icons.photo_camera_rounded,
-                      label: 'Chụp ảnh',
-                      onTap: () => _pick(ImageSource.camera),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
                     ),
+                    child: const Icon(Icons.document_scanner_rounded, color: AppColors.primary),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: _SourceButton(
-                      icon: Icons.photo_library_rounded,
-                      label: 'Thư viện',
-                      onTap: () => _pick(ImageSource.gallery),
+                    child: Text(
+                      'Quét bill chuyển khoản',
+                      style: GoogleFonts.nunito(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: theme.textTheme.bodyLarge?.color,
+                      ),
                     ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close_rounded),
                   ),
                 ],
               ),
-            ] else ...[
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 200),
-                  child: Image.memory(_imageBytes!, fit: BoxFit.cover),
+              const SizedBox(height: 8),
+              if (_imageBytes == null) ...[
+                Text(
+                  'Chụp screenshot bill chuyển khoản (MB, MoMo, VietinBank…). AI sẽ đọc số tiền và ngày, sau đó bạn mô tả để phân loại.',
+                  style: GoogleFonts.nunito(color: AppColors.textSecondary),
                 ),
-              ),
-              const SizedBox(height: 12),
-              if (_isLoading)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              else if (_error != null)
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.accent.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.accent.withOpacity(0.4)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.error_outline_rounded, color: AppColors.accent),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _error!,
-                          style: GoogleFonts.nunito(color: AppColors.accent, fontWeight: FontWeight.w600),
-                        ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _SourceButton(
+                        icon: Icons.photo_camera_rounded,
+                        label: 'Chụp ảnh',
+                        onTap: () => _pick(ImageSource.camera),
                       ),
-                    ],
-                  ),
-                )
-              else if (_result != null) ...[
-                if (_result!.needsReview)
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.amber.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Row(
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _SourceButton(
+                        icon: Icons.photo_library_rounded,
+                        label: 'Thư viện',
+                        onTap: () => _pick(ImageSource.gallery),
+                      ),
+                    ),
+                  ],
+                ),
+              ] else ...[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 160),
+                    child: Image.memory(_imageBytes!, fit: BoxFit.cover),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (_isOcrLoading)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else if (_error != null)
+                  _AlertBox(message: _error!, isError: true)
+                else if (!_isOcrLoading && _imageBytes != null) ...[
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.06),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 18),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'AI chưa chắc chắn — vui lòng kiểm tra lại trước khi lưu.',
-                            style: GoogleFonts.nunito(fontSize: 12, color: AppColors.textSecondary),
+                        Text(
+                          'Đã đọc từ bill',
+                          style: GoogleFonts.nunito(
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.primary,
                           ),
                         ),
+                        const SizedBox(height: 8),
+                        _Row(label: 'Số tiền', value: _money(_ocrAmount), strong: true),
+                        _Row(
+                          label: 'Ngày',
+                          value: _ocrDate != null
+                              ? DateFormat('dd/MM/yyyy').format(_ocrDate!)
+                              : '—',
+                        ),
+                        if (_ocrAmount == null || _ocrAmount! <= 0)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Text(
+                              'Không đọc được số tiền — nhập thủ công sau khi đóng sheet hoặc chọn ảnh rõ hơn.',
+                              style: GoogleFonts.nunito(
+                                fontSize: 12,
+                                color: AppColors.accent,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          )
+                        else if (_ocrNeedsReview)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Text(
+                              'Kiểm tra lại số tiền/ngày trước khi lưu.',
+                              style: GoogleFonts.nunito(
+                                fontSize: 12,
+                                color: Colors.amber.shade800,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ),
-                _Row(label: 'Số tiền', value: _money(_result!.amount), strong: true),
-                _Row(
-                  label: 'Ngày',
-                  value: _result!.transactionDate != null
-                      ? DateFormat('dd/MM/yyyy').format(_result!.transactionDate!)
-                      : '—',
-                ),
-                _Row(label: 'Cửa hàng', value: _result!.merchant ?? '—'),
-                _Row(
-                  label: 'Danh mục',
-                  value: (_result!.categoryName ?? '—') +
-                      (_result!.categoryId == null ? ' (chọn lại sau khi áp dụng)' : ''),
-                ),
-                if (_result!.confidence != null)
-                  _Row(
-                    label: 'Độ tin cậy',
-                    value: '${(_result!.confidence! * 100).toStringAsFixed(0)}%',
+                  const SizedBox(height: 16),
+                  Text(
+                    'Mô tả chuyển khoản',
+                    style: GoogleFonts.nunito(fontWeight: FontWeight.w800, fontSize: 15),
                   ),
-                _Row(label: 'Engine', value: _result!.ocrEngine ?? '—'),
-              ],
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
+                  const SizedBox(height: 4),
+                  Text(
+                    'Nhập nội dung để AI phân loại danh mục (vd: trà sữa, tiền điện, quà sinh nhật).',
+                    style: GoogleFonts.nunito(fontSize: 12, color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _descriptionController,
+                    maxLines: 2,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _runClassify(),
+                    decoration: InputDecoration(
+                      hintText: 'Ví dụ: Tang em sinh nhật 100k',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
                     child: OutlinedButton.icon(
-                      onPressed: _isLoading
-                          ? null
-                          : () {
-                              setState(() {
-                                _imageBytes = null;
-                                _result = null;
-                                _error = null;
-                              });
-                            },
-                      icon: const Icon(Icons.replay_rounded),
-                      label: Text('Chọn ảnh khác', style: GoogleFonts.nunito(fontWeight: FontWeight.w700)),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: _result == null || _result!.amount == null
-                          ? null
-                          : () {
-                              HapticUtils.medium();
-                              Navigator.pop(context, _result);
-                            },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
+                      onPressed: _isClassifyLoading ? null : _runClassify,
+                      icon: _isClassifyLoading
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.auto_awesome_rounded),
+                      label: Text(
+                        'Phân loại với AI',
+                        style: GoogleFonts.nunito(fontWeight: FontWeight.w700),
                       ),
-                      icon: const Icon(Icons.check_rounded),
-                      label: Text('Dùng kết quả', style: GoogleFonts.nunito(fontWeight: FontWeight.w800)),
                     ),
                   ),
+                  if (_classifyError != null) ...[
+                    const SizedBox(height: 8),
+                    _AlertBox(message: _classifyError!, isError: true),
+                  ],
+                  if (_classifyResult != null) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.green.withOpacity(0.25)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Kết quả phân loại',
+                            style: GoogleFonts.nunito(fontWeight: FontWeight.w800, color: Colors.green.shade800),
+                          ),
+                          const SizedBox(height: 6),
+                          _Row(
+                            label: 'Loại',
+                            value: _classifyResult!.transactionType == 'INCOME' ? 'Thu nhập' : 'Chi tiêu',
+                          ),
+                          _Row(label: 'Danh mục', value: _classifyResult!.categoryName),
+                          _Row(label: 'Mô tả', value: _classifyResult!.description),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
-              ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _isOcrLoading
+                            ? null
+                            : () {
+                                setState(() {
+                                  _imageBytes = null;
+                                  _ocrAmount = null;
+                                  _classifyResult = null;
+                                  _error = null;
+                                  _descriptionController.clear();
+                                });
+                              },
+                        icon: const Icon(Icons.replay_rounded),
+                        label: Text('Chọn ảnh khác', style: GoogleFonts.nunito(fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _canApply
+                            ? () {
+                                HapticUtils.medium();
+                                Navigator.pop(context, _buildResult());
+                              }
+                            : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                        ),
+                        icon: const Icon(Icons.check_rounded),
+                        label: Text('Dùng kết quả', style: GoogleFonts.nunito(fontWeight: FontWeight.w800)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ],
-          ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+class _AlertBox extends StatelessWidget {
+  final String message;
+  final bool isError;
+  const _AlertBox({required this.message, this.isError = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: (isError ? AppColors.accent : Colors.amber).withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: (isError ? AppColors.accent : Colors.amber).withOpacity(0.4)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isError ? Icons.error_outline_rounded : Icons.warning_amber_rounded,
+            color: isError ? AppColors.accent : Colors.amber,
+            size: 20,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: GoogleFonts.nunito(
+                color: isError ? AppColors.accent : AppColors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -320,10 +501,7 @@ class _SourceButton extends StatelessWidget {
           children: [
             Icon(icon, color: AppColors.primary, size: 28),
             const SizedBox(height: 8),
-            Text(
-              label,
-              style: GoogleFonts.nunito(fontWeight: FontWeight.w700, color: AppColors.primary),
-            ),
+            Text(label, style: GoogleFonts.nunito(fontWeight: FontWeight.w700, color: AppColors.primary)),
           ],
         ),
       ),
@@ -340,15 +518,15 @@ class _Row extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 110,
+            width: 100,
             child: Text(
               label,
-              style: GoogleFonts.nunito(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+              style: GoogleFonts.nunito(color: AppColors.textSecondary, fontWeight: FontWeight.w600, fontSize: 13),
             ),
           ),
           Expanded(
@@ -356,7 +534,7 @@ class _Row extends StatelessWidget {
               value,
               style: GoogleFonts.nunito(
                 fontWeight: strong ? FontWeight.w800 : FontWeight.w700,
-                fontSize: strong ? 16 : 14,
+                fontSize: strong ? 16 : 13,
                 color: Theme.of(context).textTheme.bodyLarge?.color,
               ),
             ),

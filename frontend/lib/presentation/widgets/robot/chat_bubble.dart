@@ -65,9 +65,9 @@ class _UserBubble extends StatelessWidget {
     return Align(
       alignment: Alignment.centerRight,
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        margin: const EdgeInsets.fromLTRB(48, 0, 10, 6),
+        constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.78),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -85,7 +85,7 @@ class _UserBubble extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: AppColors.primary.withOpacity(0.25),
+              color: AppColors.primary.withValues(alpha: 0.25),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
@@ -98,8 +98,9 @@ class _UserBubble extends StatelessWidget {
               message,
               style: GoogleFonts.nunito(
                 fontSize: 15,
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.w600,
                 color: Colors.white,
+                height: 1.35,
               ),
             ),
             if (subtext != null) ...[
@@ -108,7 +109,7 @@ class _UserBubble extends StatelessWidget {
                 subtext!,
                 style: GoogleFonts.nunito(
                   fontSize: 12,
-                  color: Colors.white.withOpacity(0.9),
+                  color: Colors.white.withValues(alpha: 0.9),
                 ),
               ),
             ],
@@ -118,7 +119,7 @@ class _UserBubble extends StatelessWidget {
                 DateFormat('HH:mm').format(timestamp!),
                 style: GoogleFonts.nunito(
                   fontSize: 11,
-                  color: Colors.white.withOpacity(0.7),
+                  color: Colors.white.withValues(alpha: 0.7),
                 ),
               ),
             ],
@@ -145,70 +146,73 @@ class _BotBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final type = botPersonality ?? PersonalityType.happy;
-    return Align(
-      alignment: Alignment.centerLeft,
+    final maxBubbleWidth = MediaQuery.sizeOf(context).width * 0.82;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 0, 10, 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Padding(
-            padding: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.only(bottom: 4),
             child: PersonalityRobotAvatar(
               type: type,
               size: 32,
               isSelected: false,
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
           Flexible(
-            child: Container(
-              margin: const EdgeInsets.symmetric(vertical: 6),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(4),
-                  topRight: Radius.circular(20),
-                  bottomLeft: Radius.circular(20),
-                  bottomRight: Radius.circular(20),
-                ),
-                boxShadow: AppColors.softShadow,
-                border: Border.all(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxBubbleWidth),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
                   color: AppColors.surface,
-                  width: 1,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    message,
-                    style: GoogleFonts.nunito(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textPrimary,
-                    ),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(4),
+                    topRight: Radius.circular(16),
+                    bottomLeft: Radius.circular(16),
+                    bottomRight: Radius.circular(16),
                   ),
-                  if (subtext != null) ...[
-                    const SizedBox(height: 6),
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                     Text(
-                      subtext!,
+                      message,
                       style: GoogleFonts.nunito(
-                        fontSize: 13,
-                        color: AppColors.textSecondary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                        height: 1.35,
                       ),
                     ),
-                  ],
-                  if (timestamp != null) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      DateFormat('HH:mm').format(timestamp!),
-                      style: GoogleFonts.nunito(
-                        fontSize: 11,
-                        color: AppColors.textMuted,
+                    if (subtext != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        subtext!,
+                        style: GoogleFonts.nunito(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                          height: 1.3,
+                        ),
                       ),
-                    ),
+                    ],
+                    if (timestamp != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        DateFormat('HH:mm').format(timestamp!),
+                        style: GoogleFonts.nunito(
+                          fontSize: 10,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),

@@ -18,6 +18,8 @@ public class UserProfileRequest {
     @Pattern(regexp = "HAPPY|SAD|ANGRY", message = "Personality must be HAPPY, SAD, or ANGRY")
     private String botPersonality;
 
+    private Boolean botSetupCompleted;
+
     private Boolean onboardingCompleted;
 
     @Size(max = 100)
@@ -28,5 +30,10 @@ public class UserProfileRequest {
 
     private BigDecimal initialBalance;
 
-    private BigDecimal savingsGoalMonthly;
+    private Boolean walletSetupCompleted;
+    private Boolean savingGoalSetupCompleted;
+    private Boolean savingGoalSetupSkipped;
+    private Boolean spendingLimitSetupCompleted;
+    private Boolean spendingLimitSetupSkipped;
+    private String onboardingStep;
 }

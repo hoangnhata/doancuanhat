@@ -187,8 +187,8 @@ class SettingsTab extends ConsumerWidget {
                   children: [
                     _SettingsTile(
                       icon: Icons.account_balance_wallet_rounded,
-                      title: 'Ngân sách',
-                      subtitle: 'Quản lý ngân sách theo danh mục',
+                      title: 'Hạn mức chi tiêu',
+                      subtitle: 'Đặt hạn mức theo danh mục để kiểm soát chi tiêu',
                       onTap: () => Navigator.pushNamed(context, AppRouter.budget),
                     ),
                     _SettingsTile(
@@ -202,6 +202,12 @@ class SettingsTab extends ConsumerWidget {
                       title: 'Quản lý ví',
                       subtitle: 'Thêm, sửa, xóa ví',
                       onTap: () => Navigator.pushNamed(context, AppRouter.wallets),
+                    ),
+                    _SettingsTile(
+                      icon: Icons.savings_rounded,
+                      title: 'Mục tiêu tiết kiệm',
+                      subtitle: 'Ví tiết kiệm nội bộ — nạp, rút, theo dõi',
+                      onTap: () => Navigator.pushNamed(context, AppRouter.savingGoals),
                     ),
                     _SettingsTile(
                       icon: Icons.repeat_rounded,

@@ -16,15 +16,106 @@ class WalletRepositoryImpl implements WalletRepository {
   final ApiClient _api;
   final SyncService _sync;
 
-  Wallet _map(DbWallet w) {
+  Wallet _map(DbWallet w, {double? currentBalance}) {
     return Wallet(
       id: w.remoteId ?? -w.id,
       name: w.name,
       currencyCode: w.currencyCode,
       initialBalance: w.initialBalance,
+      currentBalance: currentBalance,
       isDefault: w.isDefault,
       createdAt: w.createdAt != null ? DateTime.tryParse(w.createdAt!) : null,
     );
+  }
+
+  Future<Map<int, double>> _fetchRemoteBalances() async {
+    try {
+      final response = await _api.get(ApiConstants.wallets);
+      final list = response['data'] as List;
+      final balances = <int, double>{};
+      for (final item in list) {
+        final m = item as Map<String, dynamic>;
+        final id = (m['id'] as num).toInt();
+        if (m['currentBalance'] != null) {
+          balances[id] = (m['currentBalance'] as num).toDouble();
+        }
+      }
+      return balances;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<double> _computeLocalBalance(DbWallet wallet) async {
+    final defaultWallet = await (_db.select(_db.wallets)..where((w) => w.isDefault.equals(true))).getSingleOrNull();
+    final includeLegacy = defaultWallet?.id == wallet.id;
+
+    final q = _db.select(_db.transactions);
+    if (includeLegacy) {
+      q.where((t) => t.walletLocalId.equals(wallet.id) | t.walletLocalId.isNull());
+    } else {
+      q.where((t) => t.walletLocalId.equals(wallet.id));
+    }
+    final rows = await q.get();
+
+    var income = 0.0;
+    var expense = 0.0;
+    for (final t in rows) {
+      if (t.type.toUpperCase() == 'INCOME') {
+        income += t.amount;
+      } else {
+        expense += t.amount;
+      }
+    }
+    return wallet.initialBalance + income - expense;
+  }
+
+  Future<double> _pendingNetChange(DbWallet wallet) async {
+    final defaultWallet = await (_db.select(_db.wallets)..where((w) => w.isDefault.equals(true))).getSingleOrNull();
+    final includeLegacy = defaultWallet?.id == wallet.id;
+
+    final q = _db.select(_db.transactions)..where((t) => t.pendingSync.equals(true));
+    if (includeLegacy) {
+      q.where((t) => t.walletLocalId.equals(wallet.id) | t.walletLocalId.isNull());
+    } else {
+      q.where((t) => t.walletLocalId.equals(wallet.id));
+    }
+    final rows = await q.get();
+
+    var income = 0.0;
+    var expense = 0.0;
+    for (final t in rows) {
+      if (t.type.toUpperCase() == 'INCOME') {
+        income += t.amount;
+      } else {
+        expense += t.amount;
+      }
+    }
+    return income - expense;
+  }
+
+  Future<double?> _resolveBalance(DbWallet wallet, Map<int, double> remoteBalances) async {
+    if (wallet.remoteId == null) {
+      return _computeLocalBalance(wallet);
+    }
+
+    final remote = remoteBalances[wallet.remoteId];
+    if (remote == null) {
+      return _computeLocalBalance(wallet);
+    }
+
+    // Cùng nguồn với web: số dư server + giao dịch chưa đồng bộ (offline).
+    final pendingDelta = await _pendingNetChange(wallet);
+    return remote + pendingDelta;
+  }
+
+  Future<List<Wallet>> _mapWallets(List<DbWallet> rows, Map<int, double> remoteBalances) async {
+    final wallets = <Wallet>[];
+    for (final w in rows) {
+      final balance = await _resolveBalance(w, remoteBalances);
+      wallets.add(_map(w, currentBalance: balance));
+    }
+    return wallets;
   }
 
   Future<DbWallet?> _rowByDomainId(int id) async {
@@ -37,14 +128,16 @@ class WalletRepositoryImpl implements WalletRepository {
   @override
   Future<List<Wallet>> getAll() async {
     final rows = await (_db.select(_db.wallets)..orderBy([(w) => OrderingTerm.asc(w.name)])).get();
-    return rows.map(_map).toList();
+    final remoteBalances = await _fetchRemoteBalances();
+    return _mapWallets(rows, remoteBalances);
   }
 
   @override
   Future<Wallet> getById(int id) async {
     final row = await _rowByDomainId(id);
     if (row == null) throw StateError('Không tìm thấy ví');
-    return _map(row);
+    final remoteBalances = await _fetchRemoteBalances();
+    return _map(row, currentBalance: await _resolveBalance(row, remoteBalances));
   }
 
   @override
@@ -64,7 +157,8 @@ class WalletRepositoryImpl implements WalletRepository {
     await _db.enqueueSync(SyncService.entityWallet, 'create', localId);
     await _sync.syncAllIfOnline();
     final row = await (_db.select(_db.wallets)..where((w) => w.id.equals(localId))).getSingle();
-    return _map(row);
+    final remoteBalances = await _fetchRemoteBalances();
+    return _map(row, currentBalance: await _resolveBalance(row, remoteBalances));
   }
 
   @override
@@ -95,7 +189,8 @@ class WalletRepositoryImpl implements WalletRepository {
     await _db.enqueueSync(SyncService.entityWallet, row.remoteId == null ? 'create' : 'update', row.id);
     await _sync.syncAllIfOnline();
     final updated = await (_db.select(_db.wallets)..where((w) => w.id.equals(row.id))).getSingle();
-    return _map(updated);
+    final remoteBalances = await _fetchRemoteBalances();
+    return _map(updated, currentBalance: await _resolveBalance(updated, remoteBalances));
   }
 
   @override

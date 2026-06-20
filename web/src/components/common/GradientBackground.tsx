@@ -65,7 +65,9 @@ export function GradientBackground({ children, sx, ...rest }: BoxProps) {
       {...rest}
     >
       {!isDark && <DecorativeBlobs />}
-      <Box sx={{ position: 'relative', zIndex: 1, minHeight: '100%' }}>{children}</Box>
+      <Box sx={{ position: 'relative', zIndex: 1, minHeight: 'inherit', width: '100%' }}>
+        {children}
+      </Box>
     </Box>
   );
 }

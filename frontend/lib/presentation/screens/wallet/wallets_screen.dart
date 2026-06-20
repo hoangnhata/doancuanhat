@@ -187,7 +187,49 @@ class _WalletsScreenState extends ConsumerState<WalletsScreen> {
                               ),
                             ),
                           )
-                        : RefreshIndicator(
+                        : _wallets.isEmpty
+                            ? ListView(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(24),
+                                      border: Border.all(color: AppColors.textMuted.withValues(alpha: 0.25)),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        Container(
+                                          width: 72,
+                                          height: 72,
+                                          decoration: BoxDecoration(
+                                            color: AppColors.primary.withValues(alpha: 0.12),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(Icons.account_balance_wallet_rounded, size: 36, color: AppColors.primary),
+                                        ),
+                                        const SizedBox(height: 16),
+                                        Text('Chưa có ví nào', style: GoogleFonts.nunito(fontWeight: FontWeight.w800, fontSize: 18)),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Tạo ví để theo dõi số dư và ghi nhận giao dịch.',
+                                          textAlign: TextAlign.center,
+                                          style: GoogleFonts.nunito(color: AppColors.textSecondary),
+                                        ),
+                                        const SizedBox(height: 20),
+                                        FilledButton.icon(
+                                          onPressed: () => _showWalletSheet(),
+                                          icon: const Icon(Icons.add_rounded),
+                                          label: const Text('Tạo ví đầu tiên'),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : RefreshIndicator(
                             onRefresh: _loadWallets,
                             child: ListView.builder(
                               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -195,70 +237,133 @@ class _WalletsScreenState extends ConsumerState<WalletsScreen> {
                               itemCount: _wallets.length,
                               itemBuilder: (context, index) {
                                 final wallet = _wallets[index];
+                                final balance = wallet.currentBalance ?? wallet.initialBalance;
                                 return Padding(
                                   padding: const EdgeInsets.only(bottom: 12),
-                                  child: CardContainer(
-                                    onTap: () {
-                                      HapticUtils.selection();
-                                      _showWalletSheet(wallet);
-                                    },
-                                    child: Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.primary.withOpacity(0.15),
-                                          borderRadius: BorderRadius.circular(14),
-                                        ),
-                                        child: Icon(
-                                          Icons.account_balance_wallet_rounded,
-                                          color: AppColors.primary,
-                                          size: 28,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 16),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
-                                              children: [
-                                                Text(
-                                                  wallet.name,
-                                                  style: GoogleFonts.nunito(
-                                                    fontSize: 16,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: AppColors.textPrimary,
-                                                  ),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: wallet.isDefault
+                                          ? Border.all(color: AppColors.primary, width: 2)
+                                          : Border.all(color: AppColors.textMuted.withValues(alpha: 0.2)),
+                                      boxShadow: wallet.isDefault ? AppColors.cardShadow : AppColors.softShadow,
+                                      gradient: wallet.isDefault
+                                          ? const LinearGradient(
+                                              begin: Alignment.topLeft,
+                                              end: Alignment.bottomRight,
+                                              colors: [Color(0x140288D1), Colors.white],
+                                            )
+                                          : null,
+                                    ),
+                                    child: Material(
+                                      color: Colors.transparent,
+                                      child: InkWell(
+                                        onTap: () {
+                                          HapticUtils.selection();
+                                          _showWalletSheet(wallet);
+                                        },
+                                        borderRadius: BorderRadius.circular(20),
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(18),
+                                          child: Row(
+                                            children: [
+                                              Container(
+                                                width: 48,
+                                                height: 48,
+                                                decoration: BoxDecoration(
+                                                  gradient: wallet.isDefault
+                                                      ? const LinearGradient(
+                                                          colors: [AppColors.primary, Color(0xFF4FC3F7)],
+                                                        )
+                                                      : null,
+                                                  color: wallet.isDefault ? null : AppColors.primary.withValues(alpha: 0.12),
+                                                  borderRadius: BorderRadius.circular(14),
                                                 ),
-                                                if (wallet.isDefault) ...[
-                                                  const SizedBox(width: 6),
-                                                  Icon(Icons.star_rounded, size: 18, color: AppColors.primary),
-                                                ],
-                                              ],
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              '${wallet.currencyCode} · ${NumberFormat('#,###', 'vi').format(wallet.initialBalance)}',
-                                              style: GoogleFonts.nunito(
-                                                fontSize: 13,
-                                                color: AppColors.textSecondary,
+                                                child: Icon(
+                                                  Icons.account_balance_wallet_rounded,
+                                                  color: wallet.isDefault ? Colors.white : AppColors.primary,
+                                                ),
                                               ),
-                                            ),
-                                          ],
+                                              const SizedBox(width: 14),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    Row(
+                                                      children: [
+                                                        Expanded(
+                                                          child: Text(
+                                                            wallet.name,
+                                                            style: GoogleFonts.nunito(
+                                                              fontSize: 16,
+                                                              fontWeight: FontWeight.w800,
+                                                              color: AppColors.textPrimary,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        if (wallet.isDefault)
+                                                          Container(
+                                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                                            decoration: BoxDecoration(
+                                                              color: AppColors.primary.withValues(alpha: 0.12),
+                                                              borderRadius: BorderRadius.circular(99),
+                                                            ),
+                                                            child: Row(
+                                                              mainAxisSize: MainAxisSize.min,
+                                                              children: [
+                                                                Icon(Icons.star_rounded, size: 14, color: AppColors.primary),
+                                                                const SizedBox(width: 4),
+                                                                Text(
+                                                                  'Mặc định',
+                                                                  style: GoogleFonts.nunito(
+                                                                    fontSize: 11,
+                                                                    fontWeight: FontWeight.w700,
+                                                                    color: AppColors.primary,
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          ),
+                                                      ],
+                                                    ),
+                                                    const SizedBox(height: 4),
+                                                    Text(
+                                                      '${NumberFormat.compact(locale: 'vi').format(balance)}₫',
+                                                      style: GoogleFonts.nunito(
+                                                        fontSize: 20,
+                                                        fontWeight: FontWeight.w800,
+                                                        color: AppColors.primary,
+                                                        height: 1.1,
+                                                      ),
+                                                    ),
+                                                    Text(
+                                                      'Số dư hiện tại · ${wallet.currencyCode}',
+                                                      style: GoogleFonts.nunito(
+                                                        fontSize: 12,
+                                                        color: AppColors.textSecondary,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              if (!wallet.isDefault)
+                                                IconButton(
+                                                  icon: const Icon(Icons.delete_outline_rounded, color: AppColors.textMuted),
+                                                  onPressed: () => _deleteWallet(wallet),
+                                                )
+                                              else
+                                                IconButton(
+                                                  icon: const Icon(Icons.edit_rounded, color: AppColors.primary),
+                                                  onPressed: () => _showWalletSheet(wallet),
+                                                ),
+                                            ],
+                                          ),
                                         ),
                                       ),
-                                      if (!wallet.isDefault)
-                                        IconButton(
-                                          icon: Icon(Icons.delete_outline_rounded, color: AppColors.textMuted),
-                                          onPressed: () => _deleteWallet(wallet),
-                                        )
-                                      else
-                                        const SizedBox(width: 48),
-                                    ],
+                                    ),
                                   ),
-                                ),
-                              );
+                                );
                               },
                             ),
                           ),
@@ -345,9 +450,28 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
             ),
           ),
           const SizedBox(height: 24),
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(Icons.account_balance_wallet_rounded, color: AppColors.primary),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                widget.wallet == null ? 'Thêm ví mới' : 'Sửa ví',
+                style: GoogleFonts.nunito(fontSize: 20, fontWeight: FontWeight.w800),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
           Text(
-            widget.wallet == null ? 'Thêm ví' : 'Sửa ví',
-            style: GoogleFonts.nunito(fontSize: 20, fontWeight: FontWeight.w700),
+            'Thiết lập tên, loại tiền và số dư ban đầu cho ví.',
+            style: GoogleFonts.nunito(fontSize: 13, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 20),
           TextField(
@@ -417,12 +541,16 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
               onPressed: _isSaving ? null : _save,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               ),
               child: _isSaving
                   ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : Text('Lưu', style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white)),
+                  : Text(
+                      widget.wallet == null ? 'Tạo ví' : 'Cập nhật',
+                      style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.w700),
+                    ),
             ),
           ),
         ],

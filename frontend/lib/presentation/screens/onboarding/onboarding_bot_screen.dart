@@ -56,6 +56,14 @@ class _OnboardingBotScreenState extends ConsumerState<OnboardingBotScreen> {
               children: [
                 const SizedBox(height: 24),
                 Text(
+                  'Bước 1/4',
+                  style: GoogleFonts.nunito(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
                   'Thiết lập trợ lý tài chính của bạn – Natta',
                   style: GoogleFonts.nunito(
                     fontSize: 22,
@@ -133,7 +141,10 @@ class _OnboardingBotScreenState extends ConsumerState<OnboardingBotScreen> {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () async {
-                      await ref.read(userRepositoryProvider).updateProfile(botPersonality: _selected);
+                      await ref.read(userRepositoryProvider).updateProfile(
+                            botPersonality: _selected,
+                            botSetupCompleted: true,
+                          );
                       if (!context.mounted) return;
                       Navigator.pushReplacement(
                         context,

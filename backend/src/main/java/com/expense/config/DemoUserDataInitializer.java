@@ -26,6 +26,7 @@ public class DemoUserDataInitializer implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         try {
             demoUserSeedService.seedDemoUserIfAbsent();
+            demoUserSeedService.ensureDemoTransactionsUpToDate();
             demoUserSeedService.ensureDemoBudgetsForCurrentMonth();
         } catch (Exception e) {
             log.error("Demo user seed failed (bỏ qua nếu DB chưa sẵn sàng): {}", e.getMessage());

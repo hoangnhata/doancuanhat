@@ -14,6 +14,7 @@ import {
   Typography,
 } from '@mui/material';
 import { CategoryRounded, DeleteOutlineRounded } from '@mui/icons-material';
+import { CategoryIconBadge } from '@/lib/categoryIcons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { GradientBackground } from '@/components/common/GradientBackground';
@@ -87,13 +88,11 @@ function CategorySection({
         </Card>
       ) : (
         <Stack spacing={1}>
-          {categories.map((c) => (
+          {categories.map((c, i) => (
             <Card key={c.id} elevation={0}>
               <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-                <Stack direction="row" alignItems="center" spacing={1}>
-                  <Typography fontSize={20} component="span" sx={{ lineHeight: 1 }}>
-                    {c.icon ?? '📁'}
-                  </Typography>
+                <Stack direction="row" alignItems="center" spacing={1.5}>
+                  <CategoryIconBadge name={c.name} icon={c.icon} colorIndex={i} size={40} />
                   <Typography fontWeight={700} flex={1}>
                     {c.name}
                   </Typography>

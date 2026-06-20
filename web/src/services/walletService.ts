@@ -1,21 +1,24 @@
-import { api, type ApiEnvelope } from '@/lib/api';
-import type { Wallet } from '@/types/models';
+import { api, type ApiEnvelope } from "@/lib/api";
+import type { Wallet } from "@/types/models";
 
 function parseWallet(raw: Record<string, unknown>): Wallet {
   return {
     id: Number(raw.id),
-    name: String(raw.name ?? ''),
-    currencyCode: String(raw.currencyCode ?? 'VND'),
+    name: String(raw.name ?? ""),
+    currencyCode: String(raw.currencyCode ?? "VND"),
     initialBalance: Number(raw.initialBalance ?? 0),
+    currentBalance:
+      raw.currentBalance != null ? Number(raw.currentBalance) : undefined,
     isDefault: Boolean(raw.isDefault),
   };
 }
 
 export async function fetchWallets(): Promise<Wallet[]> {
-  const { data } = await api.get<ApiEnvelope<Record<string, unknown>[]>>(
-    '/wallets',
+  const { data } =
+    await api.get<ApiEnvelope<Record<string, unknown>[]>>("/wallets");
+  return (data.data ?? []).map((w) =>
+    parseWallet(w as Record<string, unknown>),
   );
-  return (data.data ?? []).map((w) => parseWallet(w as Record<string, unknown>));
 }
 
 export async function createWallet(body: {
@@ -25,7 +28,7 @@ export async function createWallet(body: {
   isDefault?: boolean;
 }): Promise<Wallet> {
   const { data } = await api.post<ApiEnvelope<Record<string, unknown>>>(
-    '/wallets',
+    "/wallets",
     body,
   );
   return parseWallet(data.data as Record<string, unknown>);

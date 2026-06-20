@@ -8,11 +8,17 @@ class User extends Equatable {
   final String email;
   final String? phone;
   final String? botPersonality;
+  final bool botSetupCompleted;
   final bool onboardingCompleted;
+  final bool walletSetupCompleted;
+  final bool savingGoalSetupCompleted;
+  final bool savingGoalSetupSkipped;
+  final bool spendingLimitSetupCompleted;
+  final bool spendingLimitSetupSkipped;
+  final String? onboardingStep;
   final String? walletName;
   final String? currencyCode;
   final double? initialBalance;
-  final double? savingsGoalMonthly;
 
   const User({
     required this.id,
@@ -20,11 +26,17 @@ class User extends Equatable {
     required this.email,
     this.phone,
     this.botPersonality,
+    this.botSetupCompleted = false,
     this.onboardingCompleted = false,
+    this.walletSetupCompleted = false,
+    this.savingGoalSetupCompleted = false,
+    this.savingGoalSetupSkipped = false,
+    this.spendingLimitSetupCompleted = false,
+    this.spendingLimitSetupSkipped = false,
+    this.onboardingStep,
     this.walletName,
     this.currencyCode,
     this.initialBalance,
-    this.savingsGoalMonthly,
   });
 
   BotPersonality get personality {

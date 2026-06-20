@@ -113,18 +113,24 @@ class ReceiptLineCRNN(nn.Module):
         lstm_layers: int = 3,
         num_classes: int = AMOUNT_NUM_CLASSES,
         dropout: float = 0.2,
+        width_divisor: int = 16,
     ) -> None:
         super().__init__()
         self.img_h = img_h
         self.img_w = img_w
         self.num_classes = num_classes
+        self.width_divisor = width_divisor
 
-        pool_schedule = [(2, 2), (2, 2), (1, 2), (1, 2)]
+        # Số lần giảm chiều rộng = log2(width_divisor). divisor=16 → 4 lần (như cũ);
+        # divisor=8 → 3 lần → T (số timestep CTC) GẤP ĐÔI → đủ "khe" cho dòng dài,
+        # giảm hiện tượng nuốt ký tự / mất dấu tiếng Việt.
+        width_halvings = max(0, width_divisor.bit_length() - 1)
         stages: list[nn.Module] = []
         in_ch = 1
         for i, out_ch in enumerate(cnn_channels):
-            pool = pool_schedule[i] if i < len(pool_schedule) else (1, 2)
-            stages.append(_Stage(in_ch, out_ch, pool, dropout * 0.4))
+            ph = 2 if i < 2 else 1                       # chiều cao luôn /4
+            pw = 2 if i < width_halvings else 1          # chiều rộng /width_divisor
+            stages.append(_Stage(in_ch, out_ch, (ph, pw), dropout * 0.4))
             in_ch = out_ch
         self.cnn = nn.Sequential(*stages)
         self.pool_h = nn.AdaptiveAvgPool2d((1, None))  # collapse height → 1

@@ -34,6 +34,18 @@ AMOUNT_CHAR2IDX, AMOUNT_IDX2CHAR, AMOUNT_NUM_CLASSES = charset_maps(AMOUNT_CHARS
 DATE_CHAR2IDX, DATE_IDX2CHAR, DATE_NUM_CLASSES = charset_maps(DATE_CHARSET)
 TEXT_CHAR2IDX, TEXT_IDX2CHAR, TEXT_NUM_CLASSES = charset_maps(TEXT_CHARSET)
 
+# ─────────────────────────── FULL charset (general recognizer) ───────────────
+# Dùng cho 1 model nhận dạng dòng tổng quát (train from scratch). Bao phủ:
+#   - Chữ Latin + tiếng Việt có dấu (hoa/thường)
+#   - Chữ số
+#   - Dấu câu / ký hiệu thường gặp trên hóa đơn & bill chuyển khoản
+#   - Ký hiệu tiền tệ đồng "₫"
+FULL_PUNCT = " .,-/:()&'+%*#@_"
+FULL_CHARSET = list(
+    _uniq(LATIN + VIET_LOWER + VIET_UPPER + "0123456789" + FULL_PUNCT + "₫")
+)
+FULL_CHAR2IDX, FULL_IDX2CHAR, FULL_NUM_CLASSES = charset_maps(FULL_CHARSET)
+
 # Giữ tương thích import cũ
 CHAR2IDX = AMOUNT_CHAR2IDX
 IDX2CHAR = AMOUNT_IDX2CHAR

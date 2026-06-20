@@ -28,4 +28,10 @@ public class OcrReceiptResponse {
     /** true nếu các field quan trọng (amount/category) thiếu hoặc confidence thấp → cần user review. */
     private boolean needsReview;
     private String ocrEngine;
+    /** Bill chuyển khoản (app ngân hàng / ví). */
+    private boolean bankTransfer;
+    /** Người chuyển (nếu đọc được). */
+    private String senderName;
+    /** Người nhận (nếu đọc được). */
+    private String recipientName;
 }

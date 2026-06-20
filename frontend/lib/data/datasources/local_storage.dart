@@ -28,11 +28,17 @@ class LocalStorage {
       'email': user.email,
       'phone': user.phone,
       'botPersonality': user.botPersonality,
+      'botSetupCompleted': user.botSetupCompleted,
       'onboardingCompleted': user.onboardingCompleted,
+      'walletSetupCompleted': user.walletSetupCompleted,
+      'savingGoalSetupCompleted': user.savingGoalSetupCompleted,
+      'savingGoalSetupSkipped': user.savingGoalSetupSkipped,
+      'spendingLimitSetupCompleted': user.spendingLimitSetupCompleted,
+      'spendingLimitSetupSkipped': user.spendingLimitSetupSkipped,
+      'onboardingStep': user.onboardingStep,
       'walletName': user.walletName,
       'currencyCode': user.currencyCode,
       'initialBalance': user.initialBalance,
-      'savingsGoalMonthly': user.savingsGoalMonthly,
     }));
   }
 
@@ -48,11 +54,17 @@ class LocalStorage {
         email: map['email'] as String,
         phone: map['phone'] as String?,
         botPersonality: map['botPersonality'] as String?,
+        botSetupCompleted: map['botSetupCompleted'] as bool? ?? false,
         onboardingCompleted: map['onboardingCompleted'] as bool? ?? false,
+        walletSetupCompleted: map['walletSetupCompleted'] as bool? ?? false,
+        savingGoalSetupCompleted: map['savingGoalSetupCompleted'] as bool? ?? false,
+        savingGoalSetupSkipped: map['savingGoalSetupSkipped'] as bool? ?? false,
+        spendingLimitSetupCompleted: map['spendingLimitSetupCompleted'] as bool? ?? false,
+        spendingLimitSetupSkipped: map['spendingLimitSetupSkipped'] as bool? ?? false,
+        onboardingStep: map['onboardingStep'] as String?,
         walletName: map['walletName'] as String?,
         currencyCode: map['currencyCode'] as String?,
       initialBalance: initBal != null ? (initBal is num ? initBal.toDouble() : double.tryParse(initBal.toString())) : null,
-      savingsGoalMonthly: map['savingsGoalMonthly'] != null ? (map['savingsGoalMonthly'] is num ? (map['savingsGoalMonthly'] as num).toDouble() : double.tryParse(map['savingsGoalMonthly'].toString())) : null,
     );
     } catch (_) {
       return null;

@@ -9,6 +9,7 @@ import 'package:expense_manager/core/router/app_router.dart';
 import 'package:expense_manager/core/di/injection.dart';
 import 'package:expense_manager/core/providers/app_providers.dart';
 import 'package:expense_manager/core/services/notification_service.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:expense_manager/presentation/screens/splash_screen.dart';
 
 void _listenConnectivitySync() {
@@ -47,6 +48,7 @@ class _BootstrapAppState extends State<_BootstrapApp> {
 
   Future<void> _load() async {
     try {
+      await initializeDateFormatting('vi');
       await initDependencies();
       await NotificationService.init();
       if (!kIsWeb) {

@@ -4,8 +4,42 @@ export interface User {
   email: string;
   phone?: string | null;
   botPersonality?: string | null;
+  botSetupCompleted?: boolean;
   onboardingCompleted: boolean;
-  savingsGoalMonthly?: number | null;
+  walletSetupCompleted?: boolean;
+  savingGoalSetupCompleted?: boolean;
+  savingGoalSetupSkipped?: boolean;
+  spendingLimitSetupCompleted?: boolean;
+  spendingLimitSetupSkipped?: boolean;
+  onboardingStep?: string | null;
+}
+
+export type SavingGoalStatus = "ACTIVE" | "COMPLETED" | "PAUSED" | "CANCELLED";
+export type SavingTransactionType = "DEPOSIT" | "WITHDRAW";
+
+export interface SavingGoal {
+  id: number;
+  name: string;
+  targetAmount: number;
+  currentAmount: number;
+  targetDate?: string | null;
+  status: SavingGoalStatus;
+  note?: string | null;
+  remainingAmount: number;
+  progressPercent: number;
+  isCompleted: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface SavingTransaction {
+  id: number;
+  savingGoalId: number;
+  wallet?: Wallet;
+  amount: number;
+  type: SavingTransactionType;
+  note?: string | null;
+  createdAt: string;
 }
 
 export interface AuthPayload {
@@ -19,7 +53,7 @@ export interface Category {
   name: string;
   description?: string | null;
   icon?: string | null;
-  type: 'EXPENSE' | 'INCOME';
+  type: "EXPENSE" | "INCOME";
 }
 
 export interface Wallet {
@@ -27,12 +61,13 @@ export interface Wallet {
   name: string;
   currencyCode: string;
   initialBalance: number;
+  currentBalance?: number;
   isDefault: boolean;
 }
 
 export interface Transaction {
   id: number;
-  type: 'EXPENSE' | 'INCOME';
+  type: "EXPENSE" | "INCOME";
   amount: number;
   description?: string | null;
   transactionDate: string;
@@ -62,7 +97,7 @@ export interface ForecastBudgetAlert {
   spentVnd: number;
   remainingVnd: number;
   percentUsed: number;
-  severity: 'OVER' | 'WARN' | 'OK';
+  severity: "OVER" | "WARN" | "OK";
 }
 
 export interface ForecastInsight {
@@ -70,7 +105,7 @@ export interface ForecastInsight {
   avgPerDayVnd: number;
   baseline7DaysVnd: number;
   paceVsBaselinePercent: number | null;
-  level: 'OK' | 'WATCH' | 'ALERT';
+  level: "OK" | "WATCH" | "ALERT";
   headlineVi: string;
   tipsVi: string[];
   expenseMonthToDateVnd?: number | null;
@@ -99,7 +134,7 @@ export interface ForecastEligibility {
 
 export interface AICategorizeResponse {
   /** EXPENSE | INCOME (backend returns this) */
-  transactionType?: 'EXPENSE' | 'INCOME' | string | null;
+  transactionType?: "EXPENSE" | "INCOME" | string | null;
   categoryName: string;
   categoryId?: number | null;
   amount?: number | null;
@@ -124,7 +159,7 @@ export interface RecurringTransaction {
   id: number;
   amount: number;
   description?: string | null;
-  type: 'EXPENSE' | 'INCOME';
+  type: "EXPENSE" | "INCOME";
   dayOfMonth: number;
   categoryId: number;
   category?: Category;

@@ -1,6 +1,6 @@
 const fmt = new Intl.NumberFormat('vi-VN', {
   notation: 'compact',
-  maximumFractionDigits: 1,
+  maximumFractionDigits: 2,
 });
 
 export function formatMoney(n: number): string {

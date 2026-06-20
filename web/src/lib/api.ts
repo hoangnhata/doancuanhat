@@ -36,8 +36,13 @@ export function persistAuth(payload: AuthPayload) {
       email: payload.user.email,
       phone: payload.user.phone,
       botPersonality: payload.user.botPersonality,
+      botSetupCompleted: payload.user.botSetupCompleted,
       onboardingCompleted: payload.user.onboardingCompleted,
-      savingsGoalMonthly: payload.user.savingsGoalMonthly,
+      walletSetupCompleted: payload.user.walletSetupCompleted,
+      savingGoalSetupCompleted: payload.user.savingGoalSetupCompleted,
+      savingGoalSetupSkipped: payload.user.savingGoalSetupSkipped,
+      spendingLimitSetupCompleted: payload.user.spendingLimitSetupCompleted,
+      spendingLimitSetupSkipped: payload.user.spendingLimitSetupSkipped,
     } satisfies User),
   );
 }

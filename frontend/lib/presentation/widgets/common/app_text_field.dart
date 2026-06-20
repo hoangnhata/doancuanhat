@@ -51,11 +51,19 @@ class AppTextField extends StatelessWidget {
           onChanged: onChanged,
           maxLines: maxLines,
           inputFormatters: inputFormatters,
-          style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.w400, color: AppColors.textPrimary),
+          style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
           decoration: InputDecoration(
             hintText: hint ?? label,
             hintStyle: GoogleFonts.nunito(color: AppColors.textMuted),
-            prefixIcon: prefixIcon,
+            prefixIcon: prefixIcon != null
+                ? IconTheme(
+                    data: const IconThemeData(color: AppColors.primary, size: 22),
+                    child: prefixIcon!,
+                  )
+                : null,
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
           ),
         ),
       ],

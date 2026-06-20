@@ -1,10 +1,7 @@
 package com.expense.service;
 
 import com.expense.dto.ai.OcrReceiptResponse;
-import com.expense.entity.Category;
-import com.expense.entity.User;
-import com.expense.entity.enums.CategoryType;
-import com.expense.repository.CategoryRepository;
+import com.expense.exception.BadRequestException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -18,17 +15,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
-import java.util.List;
-import java.util.Optional;
 
 /**
- * Proxy upload ảnh hóa đơn lên FastAPI OCR (EasyOCR + CRNN), sau đó map category về
- * id của user hiện hành để frontend có thể pre-fill form thêm giao dịch.
+ * Proxy upload ảnh bill chuyển khoản lên FastAPI OCR.
+ * Chỉ lấy số tiền + ngày — phân loại danh mục do client gọi /transactions/ai/categorize.
  */
 @Service
 @RequiredArgsConstructor
@@ -36,15 +32,13 @@ public class ReceiptOcrService {
 
     private static final Logger log = LoggerFactory.getLogger(ReceiptOcrService.class);
 
-    private final UserService userService;
-    private final CategoryRepository categoryRepository;
     private final WebClient.Builder webClientBuilder;
     private final ObjectMapper objectMapper;
 
     @Value("${ai.categorization.python-api.base-url:http://localhost:8000}")
     private String pythonApiBaseUrl;
 
-    @Value("${ai.ocr.parse-endpoint:/api/ocr/receipt/parse}")
+    @Value("${ai.ocr.parse-endpoint:/api/ocr/transfer/parse}")
     private String parseEndpoint;
 
     public OcrReceiptResponse parseReceipt(MultipartFile file) {
@@ -60,7 +54,7 @@ public class ReceiptOcrService {
         }
 
         MultipartBodyBuilder builder = new MultipartBodyBuilder();
-        String filename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "receipt.jpg";
+        String filename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "transfer.jpg";
         builder.part("file", new ByteArrayResource(bytes) {
             @Override
             public String getFilename() {
@@ -79,33 +73,45 @@ public class ReceiptOcrService {
                     .retrieve()
                     .bodyToMono(String.class)
                     .block();
+        } catch (WebClientResponseException ex) {
+            String detail = extractFastApiDetail(ex.getResponseBodyAsString());
+            log.warn("OCR API HTTP {}: {}", ex.getStatusCode().value(), detail);
+            if (ex.getStatusCode().value() == 503) {
+                throw new BadRequestException(
+                        detail != null && !detail.isBlank()
+                                ? detail
+                                : "Model OCR chưa sẵn sàng. Hãy chạy ai_service và đặt ocr_reco_* trong models/.");
+            }
+            throw new BadRequestException(
+                    detail != null && !detail.isBlank()
+                            ? detail
+                            : "Không phân tích được bill chuyển khoản.");
+        } catch (BadRequestException ex) {
+            throw ex;
         } catch (Exception ex) {
             log.warn("OCR service không phản hồi: {}", ex.getMessage());
-            throw new IllegalStateException(
+            throw new BadRequestException(
                     "AI OCR service chưa sẵn sàng. Hãy đảm bảo FastAPI đang chạy ở " + pythonApiBaseUrl);
         }
 
         if (response == null) {
-            throw new IllegalStateException("AI OCR service trả về rỗng");
+            throw new BadRequestException("AI OCR service trả về rỗng");
         }
 
         JsonNode root;
         try {
             root = objectMapper.readTree(response);
         } catch (Exception e) {
-            throw new IllegalStateException("Không parse được response OCR", e);
+            throw new BadRequestException("Không parse được response OCR", e);
         }
 
         BigDecimal amount = root.path("amount_vnd").isNumber()
                 ? BigDecimal.valueOf(root.path("amount_vnd").asLong())
                 : null;
         LocalDate date = parseDate(root.path("transaction_date").asText(null));
-        String merchant = optString(root.path("merchant"));
-        String description = optString(root.path("description"));
-        String categoryName = optString(root.path("category"));
-        String typeRaw = optString(root.path("type"));
-        Double confidence = root.path("category_confidence").isNumber()
-                ? root.path("category_confidence").asDouble() : null;
+        Double confidence = root.path("confidence").isNumber()
+                ? root.path("confidence").asDouble()
+                : null;
         String engine = optString(root.path("ocr_engine"));
         boolean needsReview = root.path("needs_review").asBoolean(false);
 
@@ -113,33 +119,14 @@ public class ReceiptOcrService {
             needsReview = true;
         }
 
-        // Map category name → id của user (nếu user đã có category cùng tên)
-        User user = userService.getCurrentUserEntity();
-        CategoryType type = "INCOME".equalsIgnoreCase(typeRaw) ? CategoryType.INCOME : CategoryType.EXPENSE;
-        Long categoryId = null;
-        if (categoryName != null && !categoryName.isBlank()) {
-            categoryId = findBestMatch(user.getId(), categoryName, type)
-                    .map(Category::getId)
-                    .orElse(null);
-        }
-        if (categoryId == null) needsReview = true;
-
-        // Description ưu tiên merchant nếu có
-        String finalDescription = (description != null && !description.isBlank())
-                ? description
-                : (merchant != null && !merchant.isBlank() ? merchant : null);
-
         return OcrReceiptResponse.builder()
-                .transactionType(type.name())
+                .transactionType("EXPENSE")
                 .amount(amount)
                 .transactionDate(date)
-                .merchant(merchant)
-                .description(finalDescription)
-                .categoryName(categoryName)
-                .categoryId(categoryId)
                 .confidence(confidence)
                 .needsReview(needsReview)
                 .ocrEngine(engine)
+                .bankTransfer(true)
                 .build();
     }
 
@@ -158,13 +145,29 @@ public class ReceiptOcrService {
         }
     }
 
-    private Optional<Category> findBestMatch(Long userId, String categoryName, CategoryType type) {
-        List<Category> list = categoryRepository.findByUserIdAndType(userId, type);
-        String want = categoryName.toLowerCase().trim();
-        return list.stream()
-                .filter(c -> c.getName().equalsIgnoreCase(categoryName)
-                        || c.getName().toLowerCase().contains(want)
-                        || want.contains(c.getName().toLowerCase()))
-                .findFirst();
+    private String extractFastApiDetail(String body) {
+        if (body == null || body.isBlank()) {
+            return null;
+        }
+        try {
+            JsonNode root = objectMapper.readTree(body);
+            JsonNode detail = root.path("detail");
+            if (detail.isTextual()) {
+                return detail.asText();
+            }
+            if (detail.isArray() && !detail.isEmpty()) {
+                StringBuilder sb = new StringBuilder();
+                for (JsonNode item : detail) {
+                    if (!sb.isEmpty()) {
+                        sb.append("; ");
+                    }
+                    sb.append(item.path("msg").asText(item.asText("")));
+                }
+                return sb.toString();
+            }
+        } catch (Exception ignored) {
+            // body không phải JSON FastAPI
+        }
+        return body.length() > 300 ? body.substring(0, 300) : body;
     }
 }

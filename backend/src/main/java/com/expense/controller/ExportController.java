@@ -31,14 +31,17 @@ public class ExportController {
         String contentType;
         String filename;
 
+        String rangeTag = start.format(DateTimeFormatter.ofPattern("yyyyMMdd"))
+                + "-" + end.format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+
         if ("excel".equalsIgnoreCase(format) || "xlsx".equalsIgnoreCase(format)) {
             data = exportService.exportExcel(start, end);
             contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-            filename = "bao-cao-giao-dich-" + start.format(DateTimeFormatter.ofPattern("yyyyMM")) + ".xlsx";
+            filename = "bao-cao-giao-dich-" + rangeTag + ".xlsx";
         } else {
             data = exportService.exportPdf(start, end);
             contentType = "application/pdf";
-            filename = "bao-cao-giao-dich-" + start.format(DateTimeFormatter.ofPattern("yyyyMM")) + ".pdf";
+            filename = "bao-cao-giao-dich-" + rangeTag + ".pdf";
         }
 
         return ResponseEntity.ok()

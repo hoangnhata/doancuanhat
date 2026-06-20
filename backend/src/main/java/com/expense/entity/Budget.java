@@ -1,5 +1,6 @@
 package com.expense.entity;
 
+import com.expense.entity.enums.PeriodType;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
@@ -45,6 +46,23 @@ public class Budget {
 
     @Column(length = 255)
     private String note;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "period_type", length = 20)
+    @Builder.Default
+    private PeriodType periodType = PeriodType.MONTHLY;
+
+    @Column(name = "warning_threshold_percent")
+    @Builder.Default
+    private Integer warningThresholdPercent = 80;
+
+    @Column(name = "is_active")
+    @Builder.Default
+    private Boolean isActive = true;
+
+    @Column(name = "alerts_enabled")
+    @Builder.Default
+    private Boolean alertsEnabled = true;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

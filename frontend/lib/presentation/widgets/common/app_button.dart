@@ -20,23 +20,47 @@ class AppButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
-      child: ElevatedButton(
-        onPressed: isLoading ? null : onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: outlined ? Colors.transparent : AppColors.primary,
-          foregroundColor: outlined ? AppColors.primary : Colors.white,
-          side: outlined ? const BorderSide(color: AppColors.primary) : null,
+      height: 52,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: outlined
+              ? null
+              : const LinearGradient(
+                  colors: [AppColors.primary, AppColors.primaryLight],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: outlined
+              ? null
+              : [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.35),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
         ),
-        child: isLoading
-            ? const SizedBox(
-                height: 24,
-                width: 24,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-              )
-            : Text(
-                text,
-                style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
+        child: ElevatedButton(
+          onPressed: isLoading ? null : onPressed,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: outlined ? Colors.transparent : Colors.transparent,
+            shadowColor: Colors.transparent,
+            foregroundColor: outlined ? AppColors.primary : Colors.white,
+            side: outlined ? const BorderSide(color: AppColors.primary, width: 1.5) : null,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          ),
+          child: isLoading
+              ? const SizedBox(
+                  height: 24,
+                  width: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                )
+              : Text(
+                  text,
+                  style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+        ),
       ),
     );
   }

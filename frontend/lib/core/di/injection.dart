@@ -12,6 +12,10 @@ import 'package:expense_manager/data/repositories/statistics_repository_impl.dar
 import 'package:expense_manager/data/repositories/export_repository_impl.dart';
 import 'package:expense_manager/data/repositories/recurring_transaction_repository_impl.dart';
 import 'package:expense_manager/data/repositories/wallet_repository_impl.dart';
+import 'package:expense_manager/data/repositories/saving_goal_repository_impl.dart';
+import 'package:expense_manager/data/repositories/spending_limit_repository_impl.dart';
+import 'package:expense_manager/domain/repositories/saving_goal_repository.dart';
+import 'package:expense_manager/domain/repositories/spending_limit_repository.dart';
 import 'package:expense_manager/data/sync/sync_service.dart';
 import 'package:expense_manager/domain/repositories/auth_repository.dart';
 import 'package:expense_manager/domain/repositories/user_repository.dart';
@@ -63,3 +67,5 @@ ExportRepository get exportRepository => ExportRepository(apiClient);
 RecurringTransactionRepository get recurringTransactionRepository =>
     RecurringTransactionRepositoryImpl(appDatabase, apiClient, syncService);
 WalletRepository get walletRepository => WalletRepositoryImpl(appDatabase, apiClient, syncService);
+SavingGoalRepository get savingGoalRepository => SavingGoalRepositoryImpl(apiClient);
+SpendingLimitRepository get spendingLimitRepository => SpendingLimitRepositoryImpl(apiClient);

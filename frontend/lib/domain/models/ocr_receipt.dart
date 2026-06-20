@@ -12,6 +12,9 @@ class OcrReceiptResult extends Equatable {
   final double? confidence;
   final bool needsReview;
   final String? ocrEngine;
+  final bool bankTransfer;
+  final String? senderName;
+  final String? recipientName;
 
   const OcrReceiptResult({
     required this.transactionType,
@@ -24,6 +27,9 @@ class OcrReceiptResult extends Equatable {
     this.confidence,
     required this.needsReview,
     this.ocrEngine,
+    this.bankTransfer = false,
+    this.senderName,
+    this.recipientName,
   });
 
   factory OcrReceiptResult.fromJson(Map<String, dynamic> json) {
@@ -45,6 +51,9 @@ class OcrReceiptResult extends Equatable {
       confidence: (json['confidence'] as num?)?.toDouble(),
       needsReview: json['needsReview'] as bool? ?? true,
       ocrEngine: json['ocrEngine'] as String?,
+      bankTransfer: json['bankTransfer'] as bool? ?? false,
+      senderName: json['senderName'] as String?,
+      recipientName: json['recipientName'] as String?,
     );
   }
 
@@ -60,5 +69,8 @@ class OcrReceiptResult extends Equatable {
         confidence,
         needsReview,
         ocrEngine,
+        bankTransfer,
+        senderName,
+        recipientName,
       ];
 }

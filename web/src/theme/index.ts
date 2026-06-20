@@ -61,6 +61,23 @@ const base: ThemeOptions = {
         body: {
           WebkitFontSmoothing: 'antialiased',
           MozOsxFontSmoothing: 'grayscale',
+          scrollBehavior: 'smooth',
+          margin: 0,
+        },
+        '#root': {
+          minHeight: '100vh',
+          width: '100%',
+        },
+        '*::-webkit-scrollbar': {
+          width: 8,
+          height: 8,
+        },
+        '*::-webkit-scrollbar-thumb': {
+          backgroundColor: 'rgba(100, 116, 139, 0.35)',
+          borderRadius: 8,
+        },
+        '*::-webkit-scrollbar-track': {
+          backgroundColor: 'transparent',
         },
       },
     },
@@ -139,7 +156,53 @@ const base: ThemeOptions = {
     },
     MuiToggleButton: {
       styleOverrides: {
-        root: { borderRadius: 12, textTransform: 'none', fontWeight: 600 },
+        root: {
+          borderRadius: 12,
+          textTransform: 'none',
+          fontWeight: 600,
+          gap: 6,
+          py: 1,
+          transition: 'background-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease',
+        },
+      },
+    },
+    MuiToggleButtonGroup: {
+      styleOverrides: {
+        root: ({ theme }) => ({
+          backgroundColor:
+            theme.palette.mode === 'dark' ? theme.palette.grey[900] : palette.surface,
+          borderRadius: 16,
+          padding: 4,
+          border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(148, 163, 184, 0.2)' : palette.outline}`,
+          '& .MuiToggleButtonGroup-grouped': {
+            border: 0,
+            borderRadius: '12px !important',
+            margin: '0 2px',
+            '&.Mui-selected': {
+              backgroundColor: palette.primary.main,
+              color: '#fff',
+              boxShadow: '0 4px 14px rgba(2, 136, 209, 0.38)',
+              '&:hover': {
+                backgroundColor: palette.primary.dark,
+              },
+            },
+            '&:not(.Mui-selected):hover': {
+              backgroundColor:
+                theme.palette.mode === 'dark'
+                  ? 'rgba(148, 163, 184, 0.12)'
+                  : `${palette.primary.main}0D`,
+            },
+          },
+        }),
+      },
+    },
+    MuiPopover: {
+      styleOverrides: {
+        paper: ({ theme }) => ({
+          borderRadius: 20,
+          border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(148, 163, 184, 0.16)' : palette.outline}`,
+          boxShadow: theme.palette.mode === 'dark' ? '0 16px 48px rgba(0,0,0,0.45)' : palette.shadowLift,
+        }),
       },
     },
     MuiAppBar: {

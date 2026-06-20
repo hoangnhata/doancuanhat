@@ -22,7 +22,6 @@ class ProfileScreen extends ConsumerStatefulWidget {
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _fullNameController = TextEditingController();
   final _phoneController = TextEditingController();
-  final _goalController = TextEditingController();
 
   bool _controllersInitialized = false;
   bool _saving = false;
@@ -40,7 +39,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   void dispose() {
     _fullNameController.dispose();
     _phoneController.dispose();
-    _goalController.dispose();
     super.dispose();
   }
 
@@ -58,16 +56,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (_controllersInitialized) return;
     _fullNameController.text = user.fullName;
     _phoneController.text = user.phone ?? '';
-    _goalController.text = user.savingsGoalMonthly != null ? user.savingsGoalMonthly!.toStringAsFixed(0) : '';
     _controllersInitialized = true;
-  }
-
-  double? _parseGoal() {
-    final raw = _goalController.text.trim();
-    if (raw.isEmpty) return null;
-    final digits = raw.replaceAll(RegExp(r'[^0-9.]'), '');
-    final v = double.tryParse(digits);
-    return v;
   }
 
   Future<void> _save() async {
@@ -81,7 +70,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       final updated = await ref.read(userRepositoryProvider).updateProfile(
             fullName: _fullNameController.text.trim(),
             phone: _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
-            savingsGoalMonthly: _parseGoal(),
           );
 
       if (!mounted) return;
@@ -129,7 +117,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     _maybeInitControllers(user);
 
-    final goal = user.savingsGoalMonthly;
     final personality = user.botPersonality?.toUpperCase();
     final personalityLabel = personality == 'SAD'
         ? 'SAD'
@@ -328,19 +315,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                _Field(
-                  label: 'Mục tiêu tiết kiệm/tháng',
-                  hint: goal == null ? 'Ví dụ: 5000000' : 'Hiện tại: ${goal.toStringAsFixed(0)}',
-                  child: TextField(
-                    controller: _goalController,
-                    decoration: InputDecoration(
-                      border: InputBorder.none,
-                      isDense: true,
-                      hintText: goal == null ? 'Ví dụ: 5000000' : null,
-                    ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  ),
-                ),
 
                 if (_error != null) ...[
                   const SizedBox(height: 12),

@@ -123,6 +123,24 @@ export async function askAssistant(message: string): Promise<ChatAssistantResult
   };
 }
 
+export interface AISuggestionItem {
+  categoryName: string;
+  amount: number;
+  suggestion: string;
+  percentPossible: number;
+}
+
+export async function fetchSuggestions(): Promise<AISuggestionItem[]> {
+  const { data } = await api.get<ApiEnvelope<Record<string, unknown>[]>>('/ai/suggestions');
+  const list = data.data ?? [];
+  return list.map((item) => ({
+    categoryName: String(item.categoryName ?? ''),
+    amount: Number(item.amount ?? 0),
+    suggestion: String(item.suggestion ?? ''),
+    percentPossible: Number(item.percentPossible ?? 0),
+  }));
+}
+
 export interface OcrReceiptResult {
   transactionType: 'EXPENSE' | 'INCOME';
   amount: number | null;
@@ -134,6 +152,9 @@ export interface OcrReceiptResult {
   confidence: number | null;
   needsReview: boolean;
   ocrEngine: string | null;
+  bankTransfer: boolean;
+  senderName: string | null;
+  recipientName: string | null;
 }
 
 export async function ocrReceipt(file: File): Promise<OcrReceiptResult> {
@@ -162,6 +183,9 @@ export async function ocrReceipt(file: File): Promise<OcrReceiptResult> {
     confidence: d.confidence != null ? Number(d.confidence) : null,
     needsReview: Boolean(d.needsReview ?? true),
     ocrEngine: (d.ocrEngine as string | null) ?? null,
+    bankTransfer: Boolean(d.bankTransfer ?? false),
+    senderName: (d.senderName as string | null) ?? null,
+    recipientName: (d.recipientName as string | null) ?? null,
   };
 }
 

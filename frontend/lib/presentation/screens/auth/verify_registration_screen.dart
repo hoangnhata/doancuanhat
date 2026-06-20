@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:expense_manager/core/providers/app_providers.dart';
-import 'package:expense_manager/core/router/app_router.dart';
+import 'package:expense_manager/core/router/onboarding_route.dart';
 import 'package:expense_manager/core/theme/app_theme.dart';
 import 'package:expense_manager/core/utils/api_error.dart';
 import 'package:expense_manager/core/utils/haptic_utils.dart';
@@ -50,9 +50,8 @@ class _VerifyRegistrationScreenState extends ConsumerState<VerifyRegistrationScr
           );
       if (!mounted) return;
       showSuccessSnackBar(context, 'Đăng ký thành công!');
-      final needsOnboarding = !result.user.onboardingCompleted;
       Navigator.of(context).pushNamedAndRemoveUntil(
-        needsOnboarding ? AppRouter.onboardingBot : AppRouter.main,
+        resolveOnboardingRoute(result.user),
         (r) => false,
       );
     } catch (e) {

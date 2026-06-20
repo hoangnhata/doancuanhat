@@ -46,18 +46,23 @@ class AuthRepositoryImpl implements AuthRepository {
     }
 
     final initBal = userData['initialBalance'];
-    final savingsGoal = userData['savingsGoalMonthly'];
     final user = User(
       id: userData['id'] as int,
       fullName: userData['fullName'] as String,
       email: userData['email'] as String,
       phone: userData['phone'] as String?,
       botPersonality: userData['botPersonality'] as String?,
+      botSetupCompleted: userData['botSetupCompleted'] as bool? ?? false,
       onboardingCompleted: userData['onboardingCompleted'] as bool? ?? false,
+      walletSetupCompleted: userData['walletSetupCompleted'] as bool? ?? false,
+      savingGoalSetupCompleted: userData['savingGoalSetupCompleted'] as bool? ?? false,
+      savingGoalSetupSkipped: userData['savingGoalSetupSkipped'] as bool? ?? false,
+      spendingLimitSetupCompleted: userData['spendingLimitSetupCompleted'] as bool? ?? false,
+      spendingLimitSetupSkipped: userData['spendingLimitSetupSkipped'] as bool? ?? false,
+      onboardingStep: userData['onboardingStep'] as String?,
       walletName: userData['walletName'] as String?,
       currencyCode: userData['currencyCode'] as String?,
       initialBalance: initBal != null ? (initBal is num ? initBal.toDouble() : double.tryParse(initBal.toString())) : null,
-      savingsGoalMonthly: savingsGoal != null ? (savingsGoal is num ? savingsGoal.toDouble() : double.tryParse(savingsGoal.toString())) : null,
     );
 
     await _storage.saveTokens(

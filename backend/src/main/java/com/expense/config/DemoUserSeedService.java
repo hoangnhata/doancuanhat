@@ -134,6 +134,51 @@ public class DemoUserSeedService {
         });
     }
 
+    /**
+     * Bổ sung giao dịch demo từ ngày cuối cùng đến hôm nay — tránh tháng hiện tại trống sau khi seed lần đầu.
+     */
+    @Transactional
+    public void ensureDemoTransactionsUpToDate() {
+        userRepository.findByEmail(DEMO_EMAIL).ifPresent(user -> {
+            LocalDate today = LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh"));
+            LocalDate last = transactionRepository.findLatestTransactionDateByUserId(user.getId()).orElse(null);
+            if (last == null || !last.isBefore(today)) {
+                return;
+            }
+
+            Wallet wallet = walletRepository.findByUserIdAndIsDefaultTrue(user.getId()).orElse(null);
+            if (wallet == null) {
+                return;
+            }
+
+            List<Category> expenseCats = categoryRepository.findByUserIdAndType(user.getId(), CategoryType.EXPENSE);
+            List<Category> incomeCats = categoryRepository.findByUserIdAndType(user.getId(), CategoryType.INCOME);
+            if (expenseCats.isEmpty() || incomeCats.isEmpty()) {
+                return;
+            }
+
+            Category defExp = expenseCats.get(0);
+            Category defInc = incomeCats.get(0);
+            Category catExpense = findCat(expenseCats, "Ăn uống", defExp);
+            Category catTransport = findCat(expenseCats, "Di chuyển", defExp);
+            Category catBills = findCat(expenseCats, "Hóa đơn", defExp);
+            Category catShop = findCat(expenseCats, "Mua sắm", defExp);
+            Category catOther = findCat(expenseCats, "Khác", defExp);
+            Category catEnt = findCat(expenseCats, "Giải trí", catExpense);
+            Category catSalary = findCat(incomeCats, "Lương", defInc);
+            Category catBonus = findCat(incomeCats, "Thưởng", defInc);
+            Category catFreelance = findCat(incomeCats, "Freelance", defInc);
+
+            for (LocalDate d = last.plusDays(1); !d.isAfter(today); d = d.plusDays(1)) {
+                int noise = mix(d.toEpochDay());
+                seedIncomeForDay(d, noise, wallet, user, catSalary, catBonus, catFreelance);
+                seedExpensesForDay(d, noise, wallet, user,
+                        catExpense, catTransport, catBills, catShop, catOther, catEnt);
+            }
+            log.info("Extended demo transactions for {} through {}", DEMO_EMAIL, today);
+        });
+    }
+
     private void seedDemoBudgetsForMonth(User user, List<Category> expenseCats) {
         LocalDate today = LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh"));
         LocalDate start = today.withDayOfMonth(1);
@@ -157,6 +202,10 @@ public class DemoUserSeedService {
                 .category(category)
                 .user(user)
                 .note(note)
+                .periodType(com.expense.entity.enums.PeriodType.MONTHLY)
+                .warningThresholdPercent(80)
+                .isActive(true)
+                .alertsEnabled(true)
                 .build();
         budgetRepository.save(b);
     }

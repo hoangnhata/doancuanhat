@@ -112,18 +112,31 @@ public class AuthService {
                 .build();
     }
 
+    private boolean isBotSetupCompleted(User user) {
+        if (Boolean.TRUE.equals(user.getBotSetupCompleted())) {
+            return true;
+        }
+        return user.getBotPersonality() != null && !user.getBotPersonality().isBlank();
+    }
+
     private AuthResponse.UserInfo buildUserInfo(User user) {
         return AuthResponse.UserInfo.builder()
                 .id(user.getId())
                 .fullName(user.getFullName())
                 .email(user.getEmail())
                 .phone(user.getPhone())
-                .botPersonality(user.getBotPersonality() != null ? user.getBotPersonality() : "HAPPY")
+                .botPersonality(user.getBotPersonality())
+                .botSetupCompleted(isBotSetupCompleted(user))
                 .onboardingCompleted(user.getOnboardingCompleted() != null ? user.getOnboardingCompleted() : false)
                 .walletName(user.getWalletName())
                 .currencyCode(user.getCurrencyCode() != null ? user.getCurrencyCode() : "VND")
                 .initialBalance(user.getInitialBalance())
-                .savingsGoalMonthly(user.getSavingsGoalMonthly())
+                .walletSetupCompleted(user.getWalletSetupCompleted() != null ? user.getWalletSetupCompleted() : false)
+                .savingGoalSetupCompleted(user.getSavingGoalSetupCompleted() != null ? user.getSavingGoalSetupCompleted() : false)
+                .savingGoalSetupSkipped(user.getSavingGoalSetupSkipped() != null ? user.getSavingGoalSetupSkipped() : false)
+                .spendingLimitSetupCompleted(user.getSpendingLimitSetupCompleted() != null ? user.getSpendingLimitSetupCompleted() : false)
+                .spendingLimitSetupSkipped(user.getSpendingLimitSetupSkipped() != null ? user.getSpendingLimitSetupSkipped() : false)
+                .onboardingStep(user.getOnboardingStep())
                 .build();
     }
 }

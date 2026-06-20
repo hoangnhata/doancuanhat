@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:expense_manager/core/theme/app_theme.dart';
 import 'package:expense_manager/core/providers/app_providers.dart';
 import 'package:expense_manager/core/utils/api_error.dart';
 import 'package:expense_manager/domain/models/statistics.dart';
-import 'package:expense_manager/presentation/widgets/charts/category_donut_chart.dart';
+import 'package:expense_manager/presentation/widgets/common/period_filter_bar.dart';
+import 'package:expense_manager/presentation/widgets/dashboard/section_label.dart';
+import 'package:expense_manager/presentation/widgets/analytics/analytics_chart_card.dart';
+import 'package:expense_manager/presentation/widgets/analytics/analytics_summary_row.dart';
+import 'package:expense_manager/presentation/widgets/analytics/category_breakdown_card.dart';
+import 'package:expense_manager/presentation/widgets/analytics/daily_flow_line_chart.dart';
 
 class AnalyticsScreen extends ConsumerStatefulWidget {
   const AnalyticsScreen({super.key});
@@ -86,7 +90,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       builder: (ctx) => Container(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -96,11 +100,28 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.textSecondary.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
               Text('Xuất báo cáo', style: GoogleFonts.nunito(fontSize: 18, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 4),
+              Text(
+                'Báo cáo chuyên nghiệp gồm KPI, phân tích danh mục và chi tiết giao dịch',
+                style: GoogleFonts.nunito(fontSize: 13, color: AppColors.textSecondary),
+              ),
               const SizedBox(height: 20),
               _ExportOption(
                 icon: Icons.table_chart_rounded,
                 label: 'Excel (.xlsx)',
+                subtitle: '2 sheet: báo cáo chi tiết + phân tích danh mục',
                 onTap: () async {
                   Navigator.pop(ctx);
                   final start = _period == 'month'
@@ -133,6 +154,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
               _ExportOption(
                 icon: Icons.picture_as_pdf_rounded,
                 label: 'PDF (báo cáo chi tiết)',
+                subtitle: 'Định dạng in ấn, KPI và bảng có viền rõ ràng',
                 onTap: () async {
                   Navigator.pop(ctx);
                   final start = _period == 'month'
@@ -170,10 +192,21 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final fmt = NumberFormat.compact(locale: 'vi');
+    final periodLabel =
+        _period == 'month' ? 'Tháng $_selectedMonth/$_selectedYear' : 'Năm $_selectedYear';
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('Phân tích', style: GoogleFonts.nunito(fontWeight: FontWeight.w700)),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Phân tích', style: GoogleFonts.nunito(fontWeight: FontWeight.w800, fontSize: 18)),
+            Text(
+              'Thống kê theo kỳ & danh mục',
+              style: GoogleFonts.nunito(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
@@ -200,228 +233,109 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.all(20),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      PeriodFilterBar(
+                        period: _period,
+                        onPeriodChanged: (p) {
+                          setState(() => _period = p);
+                          _loadData();
+                        },
+                        year: _selectedYear,
+                        month: _selectedMonth,
+                        onMonthYearChanged: (y, m) {
+                          setState(() {
+                            _selectedYear = y;
+                            _selectedMonth = m;
+                          });
+                          _loadData();
+                        },
+                        onYearChanged: (y) {
+                          setState(() => _selectedYear = y);
+                          _loadData();
+                        },
+                      ),
+                      const SizedBox(height: 20),
+                      AnalyticsSummaryRow(
+                        periodLabel: periodLabel,
+                        balance: _balance,
+                        totalIncome: _totalIncome,
+                        totalExpense: _totalExpense,
+                      ),
+                      const SizedBox(height: 24),
+                      const SectionLabel('Phân bổ theo loại'),
                       Row(
                         children: [
-                          Expanded(
-                            child: _FilterChip(
-                              label: 'Tháng',
-                              isSelected: _period == 'month',
-                              onTap: () => setState(() {
-                                _period = 'month';
-                                _loadData();
-                              }),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _FilterChip(
-                              label: 'Năm',
-                              isSelected: _period == 'year',
-                              onTap: () => setState(() {
-                                _period = 'year';
-                                _loadData();
-                              }),
-                            ),
-                          ),
+                          Expanded(child: _TypeToggle(
+                            label: 'Chi phí',
+                            selected: _showExpense,
+                            color: AppColors.expense,
+                            onTap: () {
+                              setState(() => _showExpense = true);
+                              _loadData();
+                            },
+                          )),
+                          const SizedBox(width: 10),
+                          Expanded(child: _TypeToggle(
+                            label: 'Thu nhập',
+                            selected: !_showExpense,
+                            color: AppColors.income,
+                            onTap: () {
+                              setState(() => _showExpense = false);
+                              _loadData();
+                            },
+                          )),
                         ],
                       ),
-                      const SizedBox(height: 12),
-                      _period == 'month'
-                          ? _MonthYearPicker(
-                              month: _selectedMonth,
-                              year: _selectedYear,
-                              onChanged: (m, y) {
-                                setState(() {
-                                  _selectedMonth = m;
-                                  _selectedYear = y;
-                                  _loadData();
-                                });
-                              },
-                            )
-                          : _YearPicker(
-                              year: _selectedYear,
-                              onChanged: (y) {
-                                setState(() {
-                                  _selectedYear = y;
-                                  _loadData();
-                                });
-                              },
+                      const SizedBox(height: 16),
+                      if (_chartData.isNotEmpty)
+                        CategoryBreakdownCard(
+                          chartData: _chartData,
+                          isExpense: _showExpense,
+                          title: _showExpense ? 'Chi tiêu theo danh mục' : 'Thu nhập theo danh mục',
+                        )
+                      else
+                        AnalyticsChartCard(
+                          subtitle: 'Danh mục',
+                          title: _showExpense ? 'Chi tiêu theo danh mục' : 'Thu nhập theo danh mục',
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 32),
+                            child: Column(
+                              children: [
+                                Icon(Icons.pie_chart_rounded, size: 48, color: AppColors.textMuted),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Chưa có dữ liệu',
+                                  style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.w700),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Thêm giao dịch để xem phân tích theo danh mục',
+                                  style: GoogleFonts.nunito(fontSize: 14, color: AppColors.textSecondary),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
                             ),
-                      const SizedBox(height: 24),
-                      _SummaryCard(
-                        title: 'Tổng thu',
-                        value: '${fmt.format(_totalIncome)}₫',
-                        color: AppColors.income,
-                      ),
-                      const SizedBox(height: 12),
-                      _SummaryCard(
-                        title: 'Tổng chi',
-                        value: '${fmt.format(_totalExpense)}₫',
-                        color: AppColors.expense,
-                      ),
-                      const SizedBox(height: 12),
-                      _SummaryCard(
-                        title: 'Chênh lệch',
-                        value: '${fmt.format(_balance)}₫',
-                        color: _balance >= 0 ? AppColors.primary : AppColors.accent,
-                      ),
-                      if (_period == 'month' && (_prevMonthIncome > 0 || _prevMonthExpense > 0)) ...[
-                        const SizedBox(height: 24),
-                        Text(
-                          'So sánh với tháng trước',
-                          style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.w700),
+                          ),
                         ),
-                        const SizedBox(height: 12),
-                        _MonthCompareChart(
-                          thisMonthIncome: _totalIncome,
-                          thisMonthExpense: _totalExpense,
-                          prevMonthIncome: _prevMonthIncome,
-                          prevMonthExpense: _prevMonthExpense,
-                        ),
-                      ],
                       if (_period == 'month' && _dailyBreakdown.isNotEmpty) ...[
-                        const SizedBox(height: 24),
-                        Text(
-                          'Biểu đồ theo thời gian',
-                          style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.w700),
+                        const SizedBox(height: 20),
+                        AnalyticsChartCard(
+                          subtitle: 'Xu hướng',
+                          title: 'Thu / chi theo ngày trong tháng',
+                          child: DailyFlowLineChart(days: _dailyBreakdown),
                         ),
-                        const SizedBox(height: 12),
-                        _DailyLineChart(days: _dailyBreakdown),
                       ],
-                      const SizedBox(height: 24),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: () => setState(() {
-                                _showExpense = true;
-                                _loadData();
-                              }),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                decoration: BoxDecoration(
-                                  color: _showExpense ? AppColors.expense.withOpacity(0.2) : Colors.white,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  'Chi phí',
-                                  textAlign: TextAlign.center,
-                                  style: GoogleFonts.nunito(
-                                    fontWeight: FontWeight.w600,
-                                    color: _showExpense ? AppColors.expense : AppColors.textSecondary,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: () => setState(() {
-                                _showExpense = false;
-                                _loadData();
-                              }),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                decoration: BoxDecoration(
-                                  color: !_showExpense ? AppColors.income.withOpacity(0.2) : Colors.white,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  'Thu nhập',
-                                  textAlign: TextAlign.center,
-                                  style: GoogleFonts.nunito(
-                                    fontWeight: FontWeight.w600,
-                                    color: !_showExpense ? AppColors.income : AppColors.textSecondary,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (_chartData.isNotEmpty) ...[
-                        const SizedBox(height: 24),
-                        Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(24),
-                            boxShadow: AppColors.softShadow,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Theo danh mục',
-                                style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.w700),
-                              ),
-                              const SizedBox(height: 20),
-                              CategoryDonutChart(
-                                chartData: _chartData,
-                                isExpense: _showExpense,
-                                height: 180,
-                              ),
-                              const SizedBox(height: 16),
-                              ...(_chartData.asMap().entries.map((entry) {
-                                final i = entry.key;
-                                final c = entry.value;
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 8),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 12,
-                                        height: 12,
-                                        decoration: BoxDecoration(
-                                          color: AppColors.chartCategoryColor(i),
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          c['name'] as String? ?? '',
-                                          style: GoogleFonts.nunito(fontSize: 14),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                      Text(
-                                        '${fmt.format((c['amount'] as num?) ?? 0)}₫',
-                                        style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.w600),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              })),
-                            ],
-                          ),
-                        ),
-                      ] else ...[
-                        const SizedBox(height: 24),
-                        Container(
-                          padding: const EdgeInsets.all(32),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(24),
-                            boxShadow: AppColors.softShadow,
-                          ),
-                          child: Column(
-                            children: [
-                              Icon(Icons.pie_chart_rounded, size: 48, color: AppColors.textMuted),
-                              const SizedBox(height: 12),
-                              Text(
-                                'Chưa có dữ liệu',
-                                style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.w600),
-                              ),
-                              Text(
-                                'Thêm giao dịch để xem phân tích theo danh mục',
-                                style: GoogleFonts.nunito(fontSize: 14, color: AppColors.textSecondary),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
+                      if (_period == 'month' && (_prevMonthIncome > 0 || _prevMonthExpense > 0)) ...[
+                        const SizedBox(height: 20),
+                        AnalyticsChartCard(
+                          subtitle: 'So sánh',
+                          title: 'Tháng này vs tháng trước',
+                          child: _MonthCompareChart(
+                            thisMonthIncome: _totalIncome,
+                            thisMonthExpense: _totalExpense,
+                            prevMonthIncome: _prevMonthIncome,
+                            prevMonthExpense: _prevMonthExpense,
                           ),
                         ),
                       ],
@@ -434,170 +348,47 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
   }
 }
 
-class _DailyLineChart extends StatelessWidget {
-  final List<DaySummary> days;
+class _TypeToggle extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final Color color;
+  final VoidCallback onTap;
 
-  const _DailyLineChart({required this.days});
-
-  static FlDotPainter _dotPainter(FlSpot spot, LineChartBarData barData) {
-    if (spot.y <= 0) {
-      return FlDotCirclePainter(
-        radius: 0,
-        color: Colors.transparent,
-        strokeWidth: 0,
-      );
-    }
-    return FlDotCirclePainter(
-      radius: 4,
-      color: barData.color ?? Colors.grey,
-      strokeWidth: 2,
-      strokeColor: Colors.white,
-    );
-  }
+  const _TypeToggle({
+    required this.label,
+    required this.selected,
+    required this.color,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    if (days.isEmpty) return const SizedBox.shrink();
-    final maxVal = days.fold<double>(
-      0,
-      (m, d) {
-        final x = d.income > d.expense ? d.income : d.expense;
-        return x > m ? x : m;
-      },
-    );
-    // Khoảng đệm phía trên để nhãn trục Y và đường line không bị cắt
-    final maxY = maxVal > 0 ? maxVal * 1.25 : 1.0;
-    final gridInterval = maxVal > 0 ? (maxY / 4).clamp(maxVal * 0.05, double.infinity) : 1.0;
-    final spotsIncome = days.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value.income)).toList();
-    final spotsExpense = days.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value.expense)).toList();
-
-    final bottomInterval =
-        days.length <= 7 ? 1.0 : (days.length / 6).ceilToDouble().clamp(1.0, days.length.toDouble());
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: AppColors.softShadow,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Row(
-                children: [
-                  Container(width: 12, height: 12, decoration: BoxDecoration(color: AppColors.income, borderRadius: BorderRadius.circular(4))),
-                  const SizedBox(width: 6),
-                  Text('Thu', style: GoogleFonts.nunito(fontSize: 12, color: AppColors.textSecondary)),
-                ],
-              ),
-              const SizedBox(width: 16),
-              Row(
-                children: [
-                  Container(width: 12, height: 12, decoration: BoxDecoration(color: AppColors.expense, borderRadius: BorderRadius.circular(4))),
-                  const SizedBox(width: 6),
-                  Text('Chi', style: GoogleFonts.nunito(fontSize: 12, color: AppColors.textSecondary)),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 228,
-            child: Padding(
-              padding: const EdgeInsets.only(right: 6, top: 10, left: 2),
-              child: LineChart(
-                LineChartData(
-                  clipData: const FlClipData.all(),
-                  gridData: FlGridData(
-                    show: true,
-                    drawVerticalLine: false,
-                    horizontalInterval: gridInterval,
-                    getDrawingHorizontalLine: (v) => FlLine(color: Colors.grey.shade200, strokeWidth: 1),
-                  ),
-                  titlesData: FlTitlesData(
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 46,
-                        interval: gridInterval,
-                        getTitlesWidget: (v, m) => Padding(
-                          padding: const EdgeInsets.only(right: 6),
-                          child: Align(
-                            alignment: Alignment.centerRight,
-                            child: Text(
-                              NumberFormat.compact(locale: 'vi').format(v),
-                              style: GoogleFonts.nunito(fontSize: 10, color: AppColors.textMuted),
-                              maxLines: 1,
-                              softWrap: false,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 28,
-                        interval: bottomInterval,
-                        getTitlesWidget: (v, m) {
-                          final i = v.round();
-                          if (i >= 0 && i < days.length) {
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Text(
-                                '${days[i].date.day}',
-                                style: GoogleFonts.nunito(fontSize: 10, color: AppColors.textMuted),
-                              ),
-                            );
-                          }
-                          return const SizedBox.shrink();
-                        },
-                      ),
-                    ),
-                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  ),
-                  borderData: FlBorderData(show: false),
-                  minX: 0,
-                  maxX: (days.length - 1).toDouble(),
-                  minY: 0,
-                  maxY: maxY,
-                  lineBarsData: [
-                    LineChartBarData(
-                      spots: spotsIncome,
-                      // Nối thẳng từng ngày — tránh spline làm đường "lộn xuống" dưới 0 khi chỉ có một đỉnh
-                      isCurved: false,
-                      color: AppColors.income,
-                      barWidth: 2.5,
-                      isStrokeCapRound: true,
-                      dotData: FlDotData(
-                        show: true,
-                        getDotPainter: (spot, percent, barData, index) => _dotPainter(spot, barData),
-                      ),
-                      belowBarData: BarAreaData(show: true, color: AppColors.income.withOpacity(0.14)),
-                    ),
-                    LineChartBarData(
-                      spots: spotsExpense,
-                      isCurved: false,
-                      color: AppColors.expense,
-                      barWidth: 2.5,
-                      isStrokeCapRound: true,
-                      dotData: FlDotData(
-                        show: true,
-                        getDotPainter: (spot, percent, barData, index) => _dotPainter(spot, barData),
-                      ),
-                      belowBarData: BarAreaData(show: true, color: AppColors.expense.withOpacity(0.14)),
-                    ),
-                  ],
-                ),
-                duration: const Duration(milliseconds: 250),
-              ),
+    return Material(
+      color: selected ? color.withValues(alpha: 0.15) : Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      elevation: selected ? 0 : 0,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected ? color.withValues(alpha: 0.4) : AppColors.textMuted.withValues(alpha: 0.2),
+              width: selected ? 1.5 : 1,
             ),
           ),
-        ],
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.nunito(
+              fontWeight: FontWeight.w800,
+              fontSize: 14,
+              color: selected ? color : AppColors.textSecondary,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -622,31 +413,25 @@ class _MonthCompareChart extends StatelessWidget {
         .reduce((a, b) => a > b ? a : b);
     final maxHeight = maxVal > 0 ? maxVal : 1.0;
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: AppColors.softShadow,
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _CompareBar(label: 'Thu (Ttr)', value: prevMonthIncome, max: maxHeight, color: AppColors.income),
-              _CompareBar(label: 'Chi (Ttr)', value: prevMonthExpense, max: maxHeight, color: AppColors.expense),
-              _CompareBar(label: 'Thu (Tn)', value: thisMonthIncome, max: maxHeight, color: AppColors.income),
-              _CompareBar(label: 'Chi (Tn)', value: thisMonthExpense, max: maxHeight, color: AppColors.expense),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Ttr = Tháng trước | Tn = Tháng này',
-            style: GoogleFonts.nunito(fontSize: 11, color: AppColors.textMuted),
-          ),
-        ],
-      ),
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            _CompareBar(label: 'Thu\nT.trước', value: prevMonthIncome, max: maxHeight, color: AppColors.income.withValues(alpha: 0.55)),
+            _CompareBar(label: 'Chi\nT.trước', value: prevMonthExpense, max: maxHeight, color: AppColors.expense.withValues(alpha: 0.55)),
+            _CompareBar(label: 'Thu\nT.này', value: thisMonthIncome, max: maxHeight, color: AppColors.income),
+            _CompareBar(label: 'Chi\nT.này', value: thisMonthExpense, max: maxHeight, color: AppColors.expense),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'T.trước = Tháng trước · T.này = Tháng đang chọn',
+          style: GoogleFonts.nunito(fontSize: 11, color: AppColors.textMuted),
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
   }
 }
@@ -662,27 +447,39 @@ class _CompareBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fmt = NumberFormat.compact(locale: 'vi');
-    final height = max > 0 ? (value / max * 80).clamp(4.0, 100.0) : 4.0;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(label, style: GoogleFonts.nunito(fontSize: 11, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 4),
-        Container(
-          width: 32,
-          height: height,
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.6),
-            borderRadius: BorderRadius.circular(6),
+    final height = max > 0 ? (value / max * 100).clamp(6.0, 100.0) : 6.0;
+    return Expanded(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.nunito(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textSecondary),
+            textAlign: TextAlign.center,
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          fmt.format(value),
-          style: GoogleFonts.nunito(fontSize: 10, color: AppColors.textSecondary),
-          overflow: TextOverflow.ellipsis,
-        ),
-      ],
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            height: height,
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [color, color.withValues(alpha: 0.65)],
+              ),
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            fmt.format(value),
+            style: GoogleFonts.nunito(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+            textAlign: TextAlign.center,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -690,143 +487,56 @@ class _CompareBar extends StatelessWidget {
 class _ExportOption extends StatelessWidget {
   final IconData icon;
   final String label;
+  final String? subtitle;
   final VoidCallback onTap;
 
-  const _ExportOption({required this.icon, required this.label, required this.onTap});
+  const _ExportOption({
+    required this.icon,
+    required this.label,
+    this.subtitle,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: Icon(icon, color: AppColors.primary),
-      title: Text(label, style: GoogleFonts.nunito(fontWeight: FontWeight.w600)),
-      onTap: onTap,
-    );
-  }
-}
-
-class _FilterChip extends StatelessWidget {
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _FilterChip({required this.label, required this.isSelected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary.withOpacity(0.2) : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: AppColors.softShadow,
-        ),
-        child: Text(label, textAlign: TextAlign.center, style: GoogleFonts.nunito(fontWeight: FontWeight.w600)),
-      ),
-    );
-  }
-}
-
-class _MonthYearPicker extends StatelessWidget {
-  final int month;
-  final int year;
-  final void Function(int month, int year) onChanged;
-
-  const _MonthYearPicker({required this.month, required this.year, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () async {
-        final date = await showDatePicker(
-          context: context,
-          initialDate: DateTime(year, month, 1),
-          firstDate: DateTime(2020),
-          lastDate: DateTime.now(),
-        );
-        if (date != null) onChanged(date.month, date.year);
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: AppColors.softShadow,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.calendar_month_rounded, size: 20, color: AppColors.textSecondary),
-            const SizedBox(width: 8),
-            Text('Tháng $month/$year', style: GoogleFonts.nunito(fontWeight: FontWeight.w600)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _YearPicker extends StatelessWidget {
-  final int year;
-  final void Function(int year) onChanged;
-
-  const _YearPicker({required this.year, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () async {
-        final date = await showDatePicker(
-          context: context,
-          initialDate: DateTime(year, 1, 1),
-          firstDate: DateTime(2020),
-          lastDate: DateTime.now(),
-        );
-        if (date != null) onChanged(date.year);
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: AppColors.softShadow,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.calendar_today_rounded, size: 20, color: AppColors.textSecondary),
-            const SizedBox(width: 8),
-            Text('Năm $year', style: GoogleFonts.nunito(fontWeight: FontWeight.w600)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SummaryCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final Color color;
-
-  const _SummaryCard({required this.title, required this.value, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Material(
+      color: AppColors.primary.withValues(alpha: 0.06),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        boxShadow: AppColors.softShadow,
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(title, style: GoogleFonts.nunito(fontSize: 14, color: AppColors.textSecondary)),
-          Text(value, style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.w700, color: color)),
-        ],
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: AppColors.primary, size: 22),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label, style: GoogleFonts.nunito(fontWeight: FontWeight.w700, fontSize: 15)),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle!,
+                        style: GoogleFonts.nunito(fontSize: 12, color: AppColors.textSecondary),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: AppColors.textSecondary.withValues(alpha: 0.6)),
+            ],
+          ),
+        ),
       ),
     );
   }

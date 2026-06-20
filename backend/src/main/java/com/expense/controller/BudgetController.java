@@ -26,7 +26,7 @@ public class BudgetController {
     @PostMapping
     public ResponseEntity<ApiResponse<BudgetDto>> create(@Valid @RequestBody BudgetRequest request) {
         BudgetDto budget = budgetService.create(request);
-        return ResponseEntity.ok(ApiResponse.success("Budget created", budget));
+        return ResponseEntity.ok(ApiResponse.success("Đã tạo hạn mức chi tiêu", budget));
     }
 
     @GetMapping("/{id}")
@@ -56,12 +56,12 @@ public class BudgetController {
             @PathVariable Long id,
             @Valid @RequestBody BudgetRequest request) {
         BudgetDto budget = budgetService.update(id, request);
-        return ResponseEntity.ok(ApiResponse.success("Budget updated", budget));
+        return ResponseEntity.ok(ApiResponse.success("Đã cập nhật hạn mức chi tiêu", budget));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         budgetService.delete(id);
-        return ResponseEntity.ok(ApiResponse.success("Budget deleted", null));
+        return ResponseEntity.ok(ApiResponse.success("Đã vô hiệu hóa hạn mức chi tiêu", null));
     }
 }

@@ -11,11 +11,14 @@ export function parseUser(raw: Record<string, unknown>): User {
     email: String(raw.email ?? ''),
     phone: (raw.phone as string | null) ?? undefined,
     botPersonality: (raw.botPersonality as string | null) ?? undefined,
+    botSetupCompleted: Boolean(raw.botSetupCompleted ?? false),
     onboardingCompleted: Boolean(raw.onboardingCompleted ?? false),
-    savingsGoalMonthly:
-      raw.savingsGoalMonthly != null
-        ? Number(raw.savingsGoalMonthly)
-        : undefined,
+    walletSetupCompleted: Boolean(raw.walletSetupCompleted ?? false),
+    savingGoalSetupCompleted: Boolean(raw.savingGoalSetupCompleted ?? false),
+    savingGoalSetupSkipped: Boolean(raw.savingGoalSetupSkipped ?? false),
+    spendingLimitSetupCompleted: Boolean(raw.spendingLimitSetupCompleted ?? false),
+    spendingLimitSetupSkipped: Boolean(raw.spendingLimitSetupSkipped ?? false),
+    onboardingStep: (raw.onboardingStep as string | null) ?? undefined,
   };
 }
 

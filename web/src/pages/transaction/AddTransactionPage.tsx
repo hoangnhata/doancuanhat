@@ -1,4 +1,5 @@
 import {
+  Alert,
   Box,
   Button,
   Card,
@@ -9,51 +10,68 @@ import {
   DialogContent,
   DialogTitle,
   IconButton,
-  MenuItem,
   Stack,
   TextField,
-  ToggleButton,
-  ToggleButtonGroup,
   Typography,
 } from '@mui/material';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import DocumentScannerRoundedIcon from '@mui/icons-material/DocumentScannerRounded';
+import {
+  AddRounded,
+  DeleteOutlineRounded,
+  EditRounded,
+  ReceiptLongRounded,
+} from '@mui/icons-material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { GradientBackground } from '@/components/common/GradientBackground';
+import { AiAssistCard } from '@/components/transaction/AiAssistCard';
+import { AmountInputSection } from '@/components/transaction/AmountInputSection';
+import {
+  CategoryChipPicker,
+  WalletChipPicker,
+} from '@/components/transaction/CategoryChipPicker';
+import { FormSection } from '@/components/transaction/FormSection';
+import { DatePickerField } from '@/components/common/DatePickerField';
 import { ReceiptOcrDialog } from '@/components/transaction/ReceiptOcrDialog';
+import { TransactionTypeToggle } from '@/components/transaction/TransactionTypeToggle';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSelectedWallet } from '@/contexts/SelectedWalletContext';
 import { extractApiError } from '@/lib/api';
+import { formatMoneyFull } from '@/lib/format';
 import { extractDateFromNaturalText } from '@/lib/transactionTextParse';
 import * as categoryService from '@/services/categoryService';
 import * as transactionService from '@/services/transactionService';
-import type { OcrReceiptResult } from '@/services/transactionService';
 import * as walletService from '@/services/walletService';
+import type { OcrReceiptResult } from '@/services/transactionService';
+import * as spendingLimitService from '@/services/spendingLimitService';
+import type { CheckTransactionResult } from '@/services/spendingLimitService';
+import { palette } from '@/theme';
 import type { AICategorizeResponse } from '@/types/models';
 
 export function AddTransactionPage() {
   const { id } = useParams();
   const editId = id ? Number(id) : undefined;
   const navigate = useNavigate();
+  const location = useLocation();
   const qc = useQueryClient();
   const { user } = useAuth();
-  const { selectedWalletId } = useSelectedWallet();
+  const { selectedWalletId, setSelectedWalletId } = useSelectedWallet();
+
+  const [showCreatedHint, setShowCreatedHint] = useState(false);
 
   const [isExpense, setIsExpense] = useState(true);
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [natural, setNatural] = useState('');
   const [categoryId, setCategoryId] = useState<number | ''>('');
-  const [date, setDate] = useState(() =>
-    new Date().toISOString().slice(0, 10),
-  );
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [walletId, setWalletId] = useState<number | ''>('');
   const [error, setError] = useState<string | null>(null);
   const [aiSuggestions, setAiSuggestions] = useState<AICategorizeResponse[]>([]);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
   const [ocrOpen, setOcrOpen] = useState(false);
+  const [limitCheck, setLimitCheck] = useState<CheckTransactionResult | null>(null);
+  const [limitDialogOpen, setLimitDialogOpen] = useState(false);
 
   const { data: existing, isLoading: loadingTx } = useQuery({
     queryKey: ['transaction', editId],
@@ -79,6 +97,13 @@ export function AddTransactionPage() {
   const categories = isExpense ? expenseCats : incomeCats;
 
   useEffect(() => {
+    const created = (location.state as { justCreated?: boolean } | null)?.justCreated;
+    if (!created) return;
+    setShowCreatedHint(true);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, navigate]);
+
+  useEffect(() => {
     if (!existing) return;
     setIsExpense(existing.type === 'EXPENSE');
     setAmount(String(Math.round(existing.amount)));
@@ -91,13 +116,18 @@ export function AddTransactionPage() {
   useEffect(() => {
     if (wallets.length && walletId === '') {
       const w =
-        (selectedWalletId &&
-          wallets.find((x) => x.id === selectedWalletId)) ||
+        (selectedWalletId && wallets.find((x) => x.id === selectedWalletId)) ||
         wallets.find((x) => x.isDefault) ||
         wallets[0];
       setWalletId(w.id);
     }
   }, [wallets, selectedWalletId, walletId]);
+
+  useEffect(() => {
+    if (categoryId === '' && categories.length > 0) {
+      setCategoryId(categories[0].id);
+    }
+  }, [categories, categoryId]);
 
   const aiMut = useMutation({
     mutationFn: () =>
@@ -113,8 +143,7 @@ export function AddTransactionPage() {
     if (r.description) setDescription(r.description);
 
     const txDate =
-      r.transactionDate?.slice(0, 10) ??
-      extractDateFromNaturalText(natural);
+      r.transactionDate?.slice(0, 10) ?? extractDateFromNaturalText(natural);
     if (txDate) setDate(txDate);
 
     const cats = nextIsExpense ? expenseCats : incomeCats;
@@ -136,11 +165,11 @@ export function AddTransactionPage() {
       (c) => c.id === r.categoryId || c.name === r.categoryName,
     );
     if (match) setCategoryId(match.id);
-    if (r.needsReview) {
-      setError('AI chưa chắc chắn — kiểm tra lại số tiền/danh mục trước khi lưu.');
-    } else {
-      setError(null);
-    }
+    setError(
+      r.needsReview
+        ? 'AI chưa chắc chắn — kiểm tra lại số tiền/danh mục trước khi lưu.'
+        : null,
+    );
   }
 
   const saveMut = useMutation({
@@ -157,17 +186,79 @@ export function AddTransactionPage() {
       };
       if (editId) {
         await transactionService.updateTransaction(editId, body);
-      } else {
-        await transactionService.createTransaction(body);
+        return { createdId: null as number | null };
       }
+      const created = await transactionService.createTransaction(body);
+      return { createdId: created.id };
+    },
+    onSuccess: async (result) => {
+      const savedWalletId = walletId === '' ? null : Number(walletId);
+      if (savedWalletId != null) setSelectedWalletId(savedWalletId);
+      await qc.invalidateQueries({ queryKey: ['transactions'] });
+      await qc.invalidateQueries({ queryKey: ['stats'] });
+      await qc.invalidateQueries({ queryKey: ['wallets'] });
+      await qc.invalidateQueries({ queryKey: ['spending-limits'] });
+      await qc.invalidateQueries({ queryKey: ['spending-limit-alerts'] });
+      if (result.createdId != null) {
+        navigate(`/app/transactions/${result.createdId}/edit`, {
+          replace: true,
+          state: { justCreated: true },
+        });
+      }
+    },
+  });
+
+  const undoMut = useMutation({
+    mutationFn: () => {
+      if (!editId) throw new Error('Không có giao dịch để thu hồi');
+      return transactionService.deleteTransaction(editId);
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['transactions'] });
       await qc.invalidateQueries({ queryKey: ['stats'] });
       await qc.invalidateQueries({ queryKey: ['wallets'] });
+      await qc.invalidateQueries({ queryKey: ['spending-limits'] });
+      await qc.invalidateQueries({ queryKey: ['spending-limit-alerts'] });
       navigate('/app/transactions');
     },
   });
+
+  async function handleSaveClick() {
+    setError(null);
+    const amt = Number(amount.replace(/\D/g, ''));
+    if (!categoryId || !amt || amt <= 0) {
+      setError('Nhập đủ danh mục và số tiền');
+      return;
+    }
+    if (wallets.length > 0 && walletId === '') {
+      setError('Chọn ví trước khi lưu');
+      return;
+    }
+    if (isExpense) {
+      try {
+        const check = await spendingLimitService.checkTransactionLimit({
+          categoryId: Number(categoryId),
+          amount: amt,
+          transactionDate: date,
+          type: 'EXPENSE',
+          excludeTransactionId: editId,
+        });
+        if (check.hasWarning && check.message) {
+          setLimitCheck(check);
+          setLimitDialogOpen(true);
+          return;
+        }
+      } catch {
+        /* tiếp tục lưu nếu API check lỗi */
+      }
+    }
+    saveMut.mutate();
+  }
+
+  function confirmSaveDespiteLimit() {
+    setLimitDialogOpen(false);
+    saveMut.mutate();
+  }
 
   const saveBatchMut = useMutation({
     mutationFn: async () => {
@@ -178,6 +269,7 @@ export function AddTransactionPage() {
       const items = aiSuggestions;
       if (!items.length) throw new Error('Không có giao dịch để xác nhận');
 
+      const undoTransactionIds: number[] = [];
       for (const s of items) {
         const t = (s.transactionType ?? '').toString().toUpperCase();
         const nextIsExpense = t !== 'INCOME';
@@ -193,7 +285,7 @@ export function AddTransactionPage() {
           );
         }
 
-        await transactionService.createTransaction({
+        const created = await transactionService.createTransaction({
           type: nextIsExpense ? 'EXPENSE' : 'INCOME',
           amount: resolvedAmount,
           description: s.description || undefined,
@@ -201,15 +293,27 @@ export function AddTransactionPage() {
           categoryId: resolvedCategoryId,
           walletId: wid,
         });
+        undoTransactionIds.push(created.id);
       }
+      return { undoTransactionIds };
     },
-    onSuccess: async () => {
+    onSuccess: async (result) => {
+      const savedWalletId = walletId === '' ? null : Number(walletId);
+      if (savedWalletId != null) setSelectedWalletId(savedWalletId);
       await qc.invalidateQueries({ queryKey: ['transactions'] });
       await qc.invalidateQueries({ queryKey: ['stats'] });
       await qc.invalidateQueries({ queryKey: ['wallets'] });
       setAiDialogOpen(false);
       setAiSuggestions([]);
-      navigate('/app/transactions');
+      const ids = result.undoTransactionIds;
+      if (ids.length === 1) {
+        navigate(`/app/transactions/${ids[0]}/edit`, {
+          replace: true,
+          state: { justCreated: true },
+        });
+      } else {
+        navigate('/app/transactions');
+      }
     },
   });
 
@@ -240,44 +344,44 @@ export function AddTransactionPage() {
     );
   }
 
+  const accent = isExpense ? palette.expense : palette.income;
+
   return (
     <GradientBackground>
-      <Box sx={{ p: 2, pb: 10, maxWidth: 520, mx: 'auto' }}>
-        <Typography variant="h6" fontWeight={800} gutterBottom>
-          {editId ? 'Sửa giao dịch' : 'Thêm giao dịch'}
-        </Typography>
-
-        <Card sx={{ mb: 2 }}>
-          <CardContent>
-            <Typography variant="subtitle2" gutterBottom>
-              Gợi ý AI (tùy chọn)
+      <Box sx={{ p: { xs: 2, md: 3 }, pb: 10, maxWidth: 560, mx: 'auto' }}>
+        <Stack direction="row" alignItems="center" spacing={1.5} mb={2.5}>
+          <Box
+            sx={{
+              width: 48,
+              height: 48,
+              borderRadius: 2.5,
+              display: 'grid',
+              placeItems: 'center',
+              background: `linear-gradient(145deg, ${palette.primary.main}, ${palette.primary.dark})`,
+              color: '#fff',
+              boxShadow: '0 2px 10px rgba(2, 136, 209, 0.35)',
+            }}
+          >
+            {editId ? <EditRounded /> : <AddRounded />}
+          </Box>
+          <Box>
+            <Typography variant="h5" fontWeight={800}>
+              {editId ? 'Sửa giao dịch' : 'Thêm giao dịch'}
             </Typography>
-            <TextField
-              fullWidth
-              placeholder='Ví dụ: "ăn trưa 50k"'
-              value={natural}
-              onChange={(e) => setNatural(e.target.value)}
-              multiline
-              minRows={2}
-            />
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mt: 1 }}>
-              <Button
-                variant="outlined"
-                onClick={runAi}
-                disabled={aiMut.isPending || !natural.trim()}
-              >
-                {aiMut.isPending ? 'Đang phân loại…' : 'Phân loại AI'}
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<DocumentScannerRoundedIcon />}
-                onClick={() => setOcrOpen(true)}
-              >
-                Quét hóa đơn
-              </Button>
-            </Stack>
-          </CardContent>
-        </Card>
+            <Typography variant="body2" color="text.secondary">
+              Ghi chép thu chi nhanh, chính xác
+            </Typography>
+          </Box>
+        </Stack>
+
+        <AiAssistCard
+          hidden={!!editId}
+          value={natural}
+          onChange={setNatural}
+          onCategorize={runAi}
+          onScanReceipt={() => setOcrOpen(true)}
+          isLoading={aiMut.isPending}
+        />
 
         <ReceiptOcrDialog
           open={ocrOpen}
@@ -285,145 +389,189 @@ export function AddTransactionPage() {
           onApply={applyOcrResult}
         />
 
-        <ToggleButtonGroup
-          exclusive
-          fullWidth
-          value={isExpense ? 'exp' : 'inc'}
-          onChange={(_, v) => {
-            if (v) {
-              setIsExpense(v === 'exp');
-              setCategoryId('');
-            }
+        <TransactionTypeToggle
+          isExpense={isExpense}
+          onChange={(exp) => {
+            setIsExpense(exp);
+            setCategoryId('');
           }}
-          sx={{ mb: 2 }}
-        >
-          <ToggleButton value="exp">Chi tiêu</ToggleButton>
-          <ToggleButton value="inc">Thu nhập</ToggleButton>
-        </ToggleButtonGroup>
+        />
 
-        <Stack spacing={2}>
-          <TextField
-            label="Số tiền"
+        <FormSection title="Chi tiết giao dịch">
+          <AmountInputSection
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            fullWidth
-            required
+            onChange={setAmount}
+            isExpense={isExpense}
+            showQuick={!editId}
           />
+        </FormSection>
+
+        <FormSection title="Mô tả" subtitle="Tùy chọn — giúp bạn nhớ khoản này">
           <TextField
-            label="Mô tả"
+            fullWidth
+            placeholder="VD: Cơm trưa với team"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            fullWidth
+            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
           />
-          <TextField
-            label="Ngày"
-            type="date"
+        </FormSection>
+
+        <FormSection title="Ngày giao dịch">
+          <DatePickerField
+            label="Chọn ngày"
             value={date}
-            onChange={(e) => setDate(e.target.value)}
-            fullWidth
-            InputLabelProps={{ shrink: true }}
+            onChange={setDate}
+            allowPast
+            maxDate={new Date()}
+            margin="none"
+            placeholder="Nhấn để mở lịch chọn ngày"
           />
-          <TextField
-            select
-            label="Danh mục"
+        </FormSection>
+
+        <FormSection title="Danh mục" subtitle={`Chọn danh mục ${isExpense ? 'chi tiêu' : 'thu nhập'}`}>
+          <CategoryChipPicker
+            categories={categories}
             value={categoryId}
-            onChange={(e) => setCategoryId(Number(e.target.value))}
-            fullWidth
-            required
-          >
-            {categories.map((c) => (
-              <MenuItem key={c.id} value={c.id}>
-                {c.name}
-              </MenuItem>
-            ))}
-          </TextField>
-          <TextField
-            select
-            label="Ví"
-            value={walletId}
-            onChange={(e) =>
-              setWalletId(
-                e.target.value === '' ? '' : Number(e.target.value),
-              )
-            }
-            fullWidth
-          >
-            {wallets.map((w) => (
-              <MenuItem key={w.id} value={w.id}>
-                {w.name}
-              </MenuItem>
-            ))}
-          </TextField>
-        </Stack>
+            onChange={setCategoryId}
+          />
+        </FormSection>
+
+        <FormSection title="Ví" subtitle="Giao dịch sẽ ghi vào ví này">
+          <WalletChipPicker wallets={wallets} value={walletId} onChange={setWalletId} />
+        </FormSection>
 
         {error && (
-          <Typography color="error" sx={{ mt: 2 }}>
+          <Alert severity="warning" sx={{ mb: 2, borderRadius: 3 }} onClose={() => setError(null)}>
             {error}
-          </Typography>
+          </Alert>
         )}
         {saveMut.error && (
-          <Typography color="error" sx={{ mt: 1 }}>
+          <Alert severity="error" sx={{ mb: 2, borderRadius: 3 }}>
             {extractApiError(saveMut.error)}
-          </Typography>
+          </Alert>
+        )}
+        {undoMut.error && (
+          <Alert severity="error" sx={{ mb: 2, borderRadius: 3 }}>
+            {extractApiError(undoMut.error)}
+          </Alert>
         )}
 
-        <Stack direction="row" spacing={2} sx={{ mt: 3 }}>
-          <Button fullWidth onClick={() => navigate(-1)}>
-            Hủy
-          </Button>
-          <Button
-            fullWidth
-            variant="contained"
-            onClick={() => saveMut.mutate()}
-            disabled={saveMut.isPending}
-          >
-            {saveMut.isPending ? 'Đang lưu…' : 'Lưu'}
-          </Button>
+        {showCreatedHint && (
+          <Alert severity="success" sx={{ mb: 2, borderRadius: 3 }}>
+            Giao dịch đã được lưu. Bạn có thể cập nhật hoặc thu hồi nếu nhập nhầm.
+          </Alert>
+        )}
+
+        <Stack spacing={1.5} sx={{ mt: 1 }}>
+          {editId && (
+            <Button
+              fullWidth
+              variant="outlined"
+              color="error"
+              startIcon={<DeleteOutlineRounded />}
+              onClick={() => {
+                if (confirm('Thu hồi (xóa) giao dịch này?')) undoMut.mutate();
+              }}
+              disabled={undoMut.isPending || saveMut.isPending}
+              sx={{ borderRadius: 2, py: 1.25, fontWeight: 700 }}
+            >
+              {undoMut.isPending ? 'Đang thu hồi…' : 'Thu hồi giao dịch'}
+            </Button>
+          )}
+          <Stack direction="row" spacing={1.5}>
+            <Button fullWidth variant="outlined" onClick={() => navigate('/app/transactions')} sx={{ borderRadius: 2, py: 1.25 }}>
+              {editId ? 'Xong' : 'Hủy'}
+            </Button>
+            <Button
+              fullWidth
+              variant="contained"
+              onClick={handleSaveClick}
+              disabled={saveMut.isPending || undoMut.isPending}
+              sx={{
+                borderRadius: 2,
+                py: 1.25,
+                fontWeight: 800,
+                bgcolor: accent,
+                '&:hover': { bgcolor: accent, filter: 'brightness(0.92)' },
+              }}
+            >
+              {saveMut.isPending ? 'Đang lưu…' : editId ? 'Cập nhật' : 'Lưu giao dịch'}
+            </Button>
+          </Stack>
         </Stack>
       </Box>
 
-      <Dialog open={aiDialogOpen} onClose={() => setAiDialogOpen(false)} fullWidth>
-        <DialogTitle>AI phát hiện nhiều giao dịch</DialogTitle>
+      <Dialog
+        open={aiDialogOpen}
+        onClose={() => setAiDialogOpen(false)}
+        fullWidth
+        maxWidth="sm"
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
+        <DialogTitle fontWeight={800}>AI phát hiện nhiều giao dịch</DialogTitle>
         <DialogContent>
-          <Stack spacing={1} sx={{ mt: 1 }}>
+          <Typography variant="body2" color="text.secondary" mb={2}>
+            Xem lại từng khoản trước khi lưu tất cả vào ví đã chọn.
+          </Typography>
+          <Stack spacing={1.5}>
             {aiSuggestions.map((s, idx) => {
               const t = (s.transactionType ?? '').toString().toUpperCase();
-              const label = t === 'INCOME' ? 'Thu nhập' : 'Chi tiêu';
+              const isInc = t === 'INCOME';
+              const label = isInc ? 'Thu nhập' : 'Chi tiêu';
               const amt = s.amount != null ? Math.round(s.amount) : null;
+              const itemAccent = isInc ? palette.income : palette.expense;
               return (
-                <Card key={idx} variant="outlined">
+                <Card
+                  key={idx}
+                  variant="outlined"
+                  sx={{
+                    borderRadius: 3,
+                    borderColor: `${itemAccent}44`,
+                    bgcolor: `${itemAccent}08`,
+                  }}
+                >
                   <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-                    <Stack spacing={0.5}>
-                      <Stack direction="row" alignItems="center" justifyContent="space-between">
-                        <Typography fontWeight={800}>
-                          {label}{amt != null ? ` • ${amt}` : ''}
+                    <Stack direction="row" alignItems="flex-start" justifyContent="space-between">
+                      <Box flex={1} minWidth={0}>
+                        <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
+                          <ReceiptLongRounded sx={{ fontSize: 18, color: itemAccent }} />
+                          <Typography fontWeight={800} color={itemAccent}>
+                            {label}
+                            {amt != null ? ` · ${formatMoneyFull(amt)}` : ''}
+                          </Typography>
+                        </Stack>
+                        <Typography variant="body2" color="text.secondary" fontWeight={600}>
+                          {s.categoryName}
                         </Typography>
-                        <IconButton
-                          aria-label="Xóa giao dịch"
-                          onClick={() =>
-                            setAiSuggestions((prev) =>
-                              prev.filter((_, i) => i !== idx),
-                            )
-                          }
-                          size="small"
-                        >
-                          <DeleteOutlineIcon />
-                        </IconButton>
-                      </Stack>
-                      <Typography variant="body2" color="text.secondary">
-                        {s.categoryName}
-                      </Typography>
-                      {s.description ? (
-                        <Typography variant="body2">{s.description}</Typography>
-                      ) : null}
+                        {s.description ? (
+                          <Typography variant="body2" mt={0.5}>
+                            {s.description}
+                          </Typography>
+                        ) : null}
+                      </Box>
+                      <IconButton
+                        aria-label="Xóa giao dịch"
+                        onClick={() =>
+                          setAiSuggestions((prev) => prev.filter((_, i) => i !== idx))
+                        }
+                        size="small"
+                      >
+                        <DeleteOutlineRounded />
+                      </IconButton>
                     </Stack>
                   </CardContent>
                 </Card>
               );
             })}
           </Stack>
+          {saveBatchMut.error && (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              {extractApiError(saveBatchMut.error)}
+            </Alert>
+          )}
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setAiDialogOpen(false)}>Đóng</Button>
           <Button
             variant="contained"
             onClick={() => saveBatchMut.mutate()}
@@ -431,7 +579,23 @@ export function AddTransactionPage() {
           >
             {saveBatchMut.isPending ? 'Đang lưu…' : 'Xác nhận tất cả'}
           </Button>
-          <Button onClick={() => setAiDialogOpen(false)}>Đóng</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={limitDialogOpen} onClose={() => setLimitDialogOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle fontWeight={800}>Cảnh báo hạn mức chi tiêu</DialogTitle>
+        <DialogContent>
+          <Typography>{limitCheck?.message}</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setLimitDialogOpen(false)}
+          >
+            Hủy
+          </Button>
+          <Button variant="contained" onClick={confirmSaveDespiteLimit} disabled={saveMut.isPending}>
+            Tiếp tục tạo
+          </Button>
         </DialogActions>
       </Dialog>
     </GradientBackground>

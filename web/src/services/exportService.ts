@@ -35,7 +35,7 @@ export async function downloadTransactionExport(
       response.headers['content-disposition'] as string | undefined,
     );
     const ext = format === 'excel' ? 'xlsx' : 'pdf';
-    const fallback = `bao-cao-giao-dich-${startDate.slice(0, 7)}.${ext}`;
+    const fallback = `bao-cao-giao-dich-${startDate.replace(/-/g, '')}-${endDate.replace(/-/g, '')}.${ext}`;
     const filename = fromHeader ?? fallback;
 
     const url = URL.createObjectURL(blob);

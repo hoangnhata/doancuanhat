@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:expense_manager/core/theme/app_theme.dart';
-import 'package:expense_manager/core/router/app_router.dart';
 import 'package:expense_manager/core/di/injection.dart';
 import 'package:expense_manager/core/providers/app_providers.dart';
 import 'package:expense_manager/presentation/widgets/robot/personality_robot_avatar.dart';
+import 'package:expense_manager/domain/models/ai_categorize.dart';
 import 'package:expense_manager/domain/models/category.dart';
 import 'package:expense_manager/domain/repositories/transaction_repository.dart';
-import 'package:expense_manager/presentation/widgets/robot/natta_avatar.dart';
 import 'package:expense_manager/presentation/widgets/robot/chat_bubble.dart';
-import 'package:expense_manager/presentation/widgets/robot/bot_selector_sheet.dart';
+import 'package:expense_manager/presentation/widgets/robot/chat_header.dart';
+import 'package:expense_manager/presentation/widgets/robot/chat_input_bar.dart';
+import 'package:expense_manager/presentation/widgets/robot/chat_mode.dart';
+import 'package:expense_manager/presentation/widgets/robot/chat_mode_toggle.dart';
+import 'package:expense_manager/presentation/widgets/robot/chat_typing_indicator.dart';
 
 class ChatMessage {
   final String text;
@@ -30,7 +32,6 @@ class ChatMessage {
 }
 
 /// Hai chế độ chat: ghi giao dịch (categorize + save) hoặc hỏi đáp Natta (LLM).
-enum ChatMode { record, ask }
 
 class ChatTab extends ConsumerStatefulWidget {
   const ChatTab({super.key});
@@ -50,10 +51,16 @@ class _ChatTabState extends ConsumerState<ChatTab> {
   List<Category> _expenseCategories = [];
   List<Category> _incomeCategories = [];
 
+  static final _batchPattern = RegExp(
+    r'(;|\n|\+|&)|,\s*(?!\d)|\s+và\s+',
+    caseSensitive: false,
+  );
+
+  static final _moneyFmt = NumberFormat('#,###', 'vi');
+
   static const _welcomeMessages = [
     'Xin chào! 👋 Tôi là Natta, trợ lý AI quản lý chi tiêu của bạn.',
-    'Chỉ cần nhập chi tiêu theo cách tự nhiên, ví dụ:\n• "ăn trưa 50k"\n• "grab đi làm 35k"\n• "mua café 25 nghìn"',
-    'Tôi sẽ tự động phân loại và ghi nhận cho bạn!',
+    'Có 2 chế độ:\n• Ghi chi tiêu — gõ "ăn trưa 50k", tôi sẽ phân loại + ghi nhận.\n• Hỏi Natta — hỏi tự nhiên về chi tiêu của bạn.',
   ];
 
   @override
@@ -130,50 +137,35 @@ class _ChatTabState extends ConsumerState<ChatTab> {
     try {
       if (_expenseCategories.isEmpty && _incomeCategories.isEmpty) await _loadCategories();
       final user = await localStorage.getUser();
-      final result = await ref.read(transactionRepositoryProvider).aiCategorize(
-            input,
-            personality: user?.botPersonality,
-          );
-      final isIncome = result.transactionType.toUpperCase() == 'INCOME';
-      final categoryId = result.categoryId ??
-          _findCategoryId(
-            result.categoryName,
-            result.suggestedCategoryName,
-            isIncome: isIncome,
-          );
+      final repo = ref.read(transactionRepositoryProvider);
+      final isBatch = _batchPattern.hasMatch(input);
+      final results = isBatch
+          ? await repo.aiCategorizeBatch(input, personality: user?.botPersonality)
+          : [
+              await repo.aiCategorize(input, personality: user?.botPersonality),
+            ];
 
-      if (categoryId != null && result.amount != null && result.amount! > 0) {
-        await ref.read(transactionRepositoryProvider).create(
-          TransactionCreateData(
-            type: isIncome ? 'INCOME' : 'EXPENSE',
-            amount: result.amount!,
-            description: result.description.isNotEmpty ? result.description : null,
-            transactionDate: result.transactionDate ?? DateTime.now(),
-            categoryId: categoryId,
-            walletId: ref.read(selectedWalletIdProvider),
-          ),
-        );
+      final savedLines = <String>[];
+      for (final result in results) {
+        final line = await _saveCategorizedTransaction(result);
+        if (line != null) savedLines.add(line);
+      }
 
-        final fmt = NumberFormat.compact(locale: 'vi');
-        final rollyMsg = result.rollyResponse ?? 'Đã ghi nhận! ✓ ${result.description.isNotEmpty ? result.description : "Chi tiêu"} - ${fmt.format(result.amount!)}₫';
-        final replies = [
-          'Đã ghi nhận! ✓ ${result.description.isNotEmpty ? result.description : "Chi tiêu"} - ${fmt.format(result.amount!)}₫',
-          rollyMsg,
-        ];
-
-        for (var r in replies) {
-          _messages.add(ChatMessage(
-            text: r,
-            type: ChatBubbleType.bot,
-            time: DateTime.now(),
-          ));
-          _scrollToBottom();
-          await Future.delayed(const Duration(milliseconds: 400));
-          if (mounted) setState(() {});
-        }
+      if (savedLines.isNotEmpty) {
+        ref.read(transactionListRefreshTriggerProvider.notifier).state++;
+        final botText = savedLines.length == 1 && !isBatch
+            ? _singleRecordReply(results.first, savedLines.first)
+            : '✓ Đã ghi ${savedLines.length} giao dịch:\n${savedLines.map((s) => '• $s').join('\n')}';
+        _messages.add(ChatMessage(
+          text: botText,
+          type: ChatBubbleType.bot,
+          time: DateTime.now(),
+        ));
       } else {
         _messages.add(ChatMessage(
-          text: 'Tôi chưa hiểu rõ. Bạn có thể nhập ví dụ: "ăn trưa 50k" hoặc dùng form thêm giao dịch.',
+          text: isBatch
+              ? 'Không ghi được giao dịch nào. Thử tách từng khoản: "ăn trưa 50k, lương 5 tr".'
+              : 'Tôi chưa hiểu rõ. Bạn có thể nhập ví dụ: "ăn trưa 50k" hoặc dùng form thêm giao dịch.',
           type: ChatBubbleType.bot,
           time: DateTime.now(),
           subtext: 'Thử nhập số tiền rõ ràng (ví dụ: 50k, 100 nghìn)',
@@ -209,11 +201,6 @@ class _ChatTabState extends ConsumerState<ChatTab> {
         text: r.reply,
         type: ChatBubbleType.bot,
         time: DateTime.now(),
-        subtext: r.engine == 'gemini'
-            ? 'Trả lời bởi Gemini AI'
-            : r.engine == 'rule'
-                ? 'Trả lời rule-based (chưa cấu hình GEMINI_API_KEY)'
-                : null,
       ));
     } catch (e) {
       _messages.add(ChatMessage(
@@ -238,19 +225,27 @@ class _ChatTabState extends ConsumerState<ChatTab> {
       final suggestions = await ref.read(transactionRepositoryProvider).getSuggestions();
       if (!mounted) return;
 
-      final fmt = NumberFormat('#,###', 'vi');
-      final buf = StringBuffer('💡 Gợi ý tiết kiệm (30 ngày qua):\n\n');
-      for (final s in suggestions) {
-        buf.writeln('• ${s.categoryName}: ${fmt.format(s.amount)}₫');
-        buf.writeln('  ${s.suggestion}');
-        buf.writeln('  (Có thể giảm ~${s.percentPossible}%)\n');
-      }
+      if (suggestions.isEmpty) {
+        _messages.add(ChatMessage(
+          text: 'Chưa đủ dữ liệu chi tiêu để gợi ý. Hãy ghi thêm vài giao dịch nhé!',
+          type: ChatBubbleType.bot,
+          time: DateTime.now(),
+        ));
+      } else {
+        final fmt = NumberFormat('#,###', 'vi');
+        final buf = StringBuffer('💡 Gợi ý tiết kiệm (30 ngày qua):\n\n');
+        for (final s in suggestions) {
+          buf.writeln('• ${s.categoryName}: ${fmt.format(s.amount)}₫');
+          buf.writeln('  ${s.suggestion}');
+          buf.writeln('  (Có thể giảm ~${s.percentPossible}%)\n');
+        }
 
-      _messages.add(ChatMessage(
-        text: buf.toString().trim(),
-        type: ChatBubbleType.bot,
-        time: DateTime.now(),
-      ));
+        _messages.add(ChatMessage(
+          text: buf.toString().trim(),
+          type: ChatBubbleType.bot,
+          time: DateTime.now(),
+        ));
+      }
     } catch (e) {
       _messages.add(ChatMessage(
         text: 'Không thể tải gợi ý. Vui lòng thử lại sau.',
@@ -263,6 +258,41 @@ class _ChatTabState extends ConsumerState<ChatTab> {
       setState(() => _isLoadingSuggestions = false);
       _scrollToBottom();
     }
+  }
+
+  Future<String?> _saveCategorizedTransaction(AICategorizeResult result) async {
+    final isIncome = result.transactionType.toUpperCase() == 'INCOME';
+    final categoryId = result.categoryId ??
+        _findCategoryId(
+          result.categoryName,
+          result.suggestedCategoryName,
+          isIncome: isIncome,
+        );
+    if (categoryId == null || result.amount == null || result.amount! <= 0) return null;
+
+    await ref.read(transactionRepositoryProvider).create(
+      TransactionCreateData(
+        type: isIncome ? 'INCOME' : 'EXPENSE',
+        amount: result.amount!,
+        description: result.description.isNotEmpty ? result.description : null,
+        transactionDate: result.transactionDate ?? DateTime.now(),
+        categoryId: categoryId,
+        walletId: ref.read(selectedWalletIdProvider),
+      ),
+    );
+
+    final pool = isIncome ? _incomeCategories : _expenseCategories;
+    final catName = pool.where((c) => c.id == categoryId).map((c) => c.name).firstOrNull ??
+        (result.categoryName.isNotEmpty ? result.categoryName : 'Danh mục');
+    final kind = isIncome ? 'Thu' : 'Chi';
+    return '$kind · $catName · ${_moneyFmt.format(result.amount!)} ₫';
+  }
+
+  String _singleRecordReply(AICategorizeResult result, String savedLine) {
+    if (result.rollyResponse != null && result.rollyResponse!.isNotEmpty) {
+      return '${result.rollyResponse}\n\n✓ Đã ghi: $savedLine';
+    }
+    return 'Đã ghi nhận! ✓ $savedLine';
   }
 
   int? _findCategoryId(String categoryName, String suggested, {required bool isIncome}) {
@@ -289,479 +319,71 @@ class _ChatTabState extends ConsumerState<ChatTab> {
         : user?.botPersonality == 'ANGRY'
             ? PersonalityType.angry
             : PersonalityType.happy;
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              AppColors.gradientStart,
-              AppColors.background,
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              _buildHeader(),
-              _buildModeSwitcher(),
-              Expanded(
-                child: ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  itemCount: _messages.length + 1,
-                  itemBuilder: (context, index) {
-                    if (index == 0) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        child: NattaAvatar(size: 56, showGreeting: false),
-                      );
-                    }
-                    final msg = _messages[index - 1];
-                    return ChatBubble(
-                      message: msg.text,
-                      type: msg.type,
-                      timestamp: msg.time,
-                      subtext: msg.subtext,
-                      isTransaction: msg.isTransaction,
-                      botPersonality: msg.type == ChatBubbleType.bot ? botType : null,
-                    );
-                  },
-                ),
-              ),
-              if (_isLoading)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 32,
-                        height: 32,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        'Đang xử lý...',
-                        style: GoogleFonts.nunito(
-                          fontSize: 14,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              _buildInputArea(),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+    final subtitle = _mode == ChatMode.ask
+        ? 'Hỏi Natta về chi tiêu cá nhân của bạn'
+        : 'Gõ chi tiêu tự nhiên — AI gợi ý danh mục';
 
-  Widget _buildHeader() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return ColoredBox(
+      color: AppColors.surface,
+      child: Column(
         children: [
-          GestureDetector(
-            onTap: () => showBotSelectorSheet(context),
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: AppColors.softShadow,
-              ),
-              child: NattaAvatar(size: 36),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: GestureDetector(
-              onTap: () => showBotSelectorSheet(context),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        'Trợ lý AI',
-                        style: GoogleFonts.nunito(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      Icon(Icons.arrow_drop_down_rounded, color: AppColors.textMuted, size: 24),
-                    ],
-                  ),
-                  Text(
-                    _mode == ChatMode.ask
-                        ? 'Hỏi Natta về chi tiêu của bạn'
-                        : 'Nhập chi tiêu tự nhiên để ghi nhanh',
-                    style: GoogleFonts.nunito(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Row(
-            children: [
-              _HeaderIconButton(
-                icon: Icons.add_chart_rounded,
-                onTap: () => Navigator.pushNamed(context, AppRouter.addTransaction).then((_) {
-                  ref.read(transactionListRefreshTriggerProvider.notifier).state++;
-                }),
-              ),
-              const SizedBox(width: 8),
-              _HeaderIconButton(
-                icon: Icons.account_balance_wallet_rounded,
-                onTap: () => Navigator.pushNamed(context, AppRouter.budget),
-              ),
-              const SizedBox(width: 8),
-              _HeaderIconButton(
-                icon: Icons.category_rounded,
-                onTap: () => Navigator.pushNamed(context, AppRouter.categories),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildModeSwitcher() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.primary.withOpacity(0.25)),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: _ModeTab(
-                icon: Icons.edit_note_rounded,
-                label: 'Ghi chi tiêu',
-                selected: _mode == ChatMode.record,
-                onTap: () => setState(() => _mode = ChatMode.record),
-              ),
-            ),
-            Container(width: 1, height: 36, color: AppColors.primary.withOpacity(0.15)),
-            Expanded(
-              child: _ModeTab(
-                icon: Icons.chat_bubble_outline_rounded,
-                label: 'Hỏi Natta',
-                selected: _mode == ChatMode.ask,
-                onTap: () => setState(() => _mode = ChatMode.ask),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInputArea() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.9),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 20,
-            offset: const Offset(0, -4),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (_mode == ChatMode.record)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: _isLoading || _isLoadingSuggestions ? null : _fetchSuggestions,
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.primary.withOpacity(0.3)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.lightbulb_outline_rounded,
-                            size: 20,
-                            color: _isLoadingSuggestions ? AppColors.textMuted : AppColors.primary,
-                          ),
-                          const SizedBox(width: 8),
-                          _isLoadingSuggestions
-                              ? Text(
-                                  'Đang tải...',
-                                  style: GoogleFonts.nunito(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.textMuted,
-                                  ),
-                                )
-                              : Text(
-                                  'Gợi ý tiết kiệm',
-                                  style: GoogleFonts.nunito(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.primary,
-                                  ),
-                                ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              )
-            else
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _QuickQuestionChip(
-                        label: 'Tháng này tiêu nhiều nhất vào đâu?',
-                        onTap: () => _askAssistant('Tháng này tôi tiêu nhiều nhất vào đâu?'),
-                      ),
-                      _QuickQuestionChip(
-                        label: 'Tôi nên cắt giảm gì?',
-                        onTap: () => _askAssistant('Tôi nên cắt giảm khoản nào?'),
-                      ),
-                      _QuickQuestionChip(
-                        label: 'Tóm tắt tháng này',
-                        onTap: () => _askAssistant('Tóm tắt chi tiêu tháng này của tôi.'),
-                      ),
-                      _QuickQuestionChip(
-                        label: 'Ngân sách còn lại?',
-                        onTap: () => _askAssistant('Ngân sách của tôi còn lại bao nhiêu?'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: AppColors.primary.withOpacity(0.3)),
-                    ),
-                    child: TextField(
-                      controller: _controller,
-                      focusNode: _focusNode,
-                      decoration: InputDecoration(
-                        hintText: _mode == ChatMode.ask
-                            ? 'Hỏi về chi tiêu...'
-                            : 'ăn trưa 50k, grab 35k...',
-                        hintStyle: GoogleFonts.nunito(color: AppColors.textMuted, fontSize: 13),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                      ),
-                      style: GoogleFonts.nunito(fontSize: 14),
-                      maxLines: 3,
-                      minLines: 1,
-                      onSubmitted: _processInput,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: _isLoading ? null : () => _processInput(_controller.text),
-                    borderRadius: BorderRadius.circular(20),
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: _isLoading
-                              ? [AppColors.textMuted, AppColors.textMuted]
-                              : [AppColors.primary, AppColors.primaryDark],
-                        ),
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: _isLoading
-                            ? null
-                            : [
-                                BoxShadow(
-                                  color: AppColors.primary.withOpacity(0.4),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                      ),
-                      child: _isLoading
-                          ? SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Icon(Icons.send_rounded, color: Colors.white, size: 22),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Tab chuyển chế độ — icon + label trên một hàng, tránh wrap của SegmentedButton.
-class _ModeTab extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _ModeTab({
-    required this.icon,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: selected ? AppColors.primary.withOpacity(0.12) : Colors.transparent,
-      borderRadius: BorderRadius.circular(13),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(13),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 16,
-                color: selected ? AppColors.primary : AppColors.textMuted,
-              ),
-              const SizedBox(width: 4),
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.nunito(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: selected ? AppColors.primary : AppColors.textSecondary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _QuickQuestionChip extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
-  const _QuickQuestionChip({required this.label, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.primary.withOpacity(0.3)),
-            ),
-            child: Row(
+          SafeArea(
+            bottom: false,
+            child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.bolt_rounded, size: 16, color: AppColors.primary),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: GoogleFonts.nunito(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primary,
-                  ),
+                ChatHeader(subtitle: subtitle, botPersonality: botType),
+                ChatModeToggle(
+                  mode: _mode,
+                  onChanged: (m) => setState(() => _mode = m),
                 ),
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _HeaderIconButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _HeaderIconButton({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: AppColors.softShadow,
+          Expanded(
+            child: ColoredBox(
+              color: Colors.white,
+              child: ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.fromLTRB(0, 8, 0, 8),
+                itemCount: _messages.length + (_isLoading ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (_isLoading && index == _messages.length) {
+                    return ChatTypingIndicator(
+                      label: _mode == ChatMode.ask
+                          ? 'Natta đang suy nghĩ…'
+                          : 'Đang phân loại…',
+                    );
+                  }
+                  final msg = _messages[index];
+                  return ChatBubble(
+                    message: msg.text,
+                    type: msg.type,
+                    timestamp: msg.time,
+                    subtext: msg.subtext,
+                    isTransaction: msg.isTransaction,
+                    botPersonality: msg.type == ChatBubbleType.bot ? botType : null,
+                  );
+                },
+              ),
+            ),
           ),
-          child: Icon(icon, size: 22, color: AppColors.primary),
-        ),
+          ListenableBuilder(
+            listenable: _controller,
+            builder: (context, _) => ChatInputBar(
+              mode: _mode,
+              controller: _controller,
+              focusNode: _focusNode,
+              disabled: _isLoading,
+              loadingSuggestions: _isLoadingSuggestions,
+              onSend: () => _processInput(_controller.text),
+              onSubmit: _processInput,
+              onFetchSuggestions: _fetchSuggestions,
+              onQuickRecord: _processInput,
+              onQuickAsk: _askAssistant,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:expense_manager/core/theme/app_theme.dart';
+import 'package:expense_manager/core/utils/category_icons.dart';
 import 'package:expense_manager/core/utils/api_error.dart' show extractErrorMessage;
 import 'package:expense_manager/core/utils/haptic_utils.dart';
 import 'package:expense_manager/core/utils/transaction_text_parse.dart';
@@ -13,10 +14,13 @@ import 'package:expense_manager/domain/models/ocr_receipt.dart';
 import 'package:expense_manager/domain/models/transaction.dart';
 import 'package:expense_manager/domain/models/wallet.dart';
 import 'package:expense_manager/domain/repositories/transaction_repository.dart';
+import 'package:expense_manager/core/constants/api_constants.dart';
+import 'package:expense_manager/core/di/injection.dart';
 import 'package:expense_manager/core/providers/app_providers.dart';
 import 'package:expense_manager/core/router/app_router.dart';
-import 'package:expense_manager/presentation/widgets/common/card_container.dart';
+import 'package:expense_manager/presentation/widgets/transaction/amount_input_section.dart';
 import 'package:expense_manager/presentation/widgets/transaction/receipt_ocr_sheet.dart';
+import 'package:expense_manager/presentation/widgets/transaction/transaction_form_widgets.dart';
 
 class AddTransactionScreen extends ConsumerStatefulWidget {
   final Transaction? transactionToEdit;
@@ -44,8 +48,11 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   bool _isSaving = false;
   String? _error;
   String? _categoriesLoadError;
+  Transaction? _savedTransaction;
 
-  bool get _isEditMode => widget.transactionToEdit != null;
+  bool get _isEditMode => widget.transactionToEdit != null || _savedTransaction != null;
+
+  int? get _transactionId => widget.transactionToEdit?.id ?? _savedTransaction?.id;
 
   @override
   void initState() {
@@ -79,15 +86,16 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
       _wallets = r[2] as List<Wallet>;
 
       if (_selectedCategory == null) {
-        if (_isEditMode && widget.transactionToEdit != null) {
-          _selectedCategory = widget.transactionToEdit!.category;
+        if (_isEditMode) {
+          _selectedCategory = widget.transactionToEdit?.category ?? _savedTransaction?.category;
         } else if (_expenseCategories.isNotEmpty) {
           _selectedCategory = _isExpense ? _expenseCategories.first : (_incomeCategories.isNotEmpty ? _incomeCategories.first : null);
         }
       }
       if (_selectedWallet == null && _wallets.isNotEmpty) {
-        if (_isEditMode && widget.transactionToEdit?.walletId != null) {
-          _selectedWallet = _wallets.where((w) => w.id == widget.transactionToEdit!.walletId).firstOrNull;
+        final walletId = widget.transactionToEdit?.walletId ?? _savedTransaction?.walletId;
+        if (_isEditMode && walletId != null) {
+          _selectedWallet = _wallets.where((w) => w.id == walletId).firstOrNull;
         }
         _selectedWallet ??= _wallets.firstWhere((w) => w.isDefault, orElse: () => _wallets.first);
       }
@@ -266,6 +274,8 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
 
     int created = 0;
     int skipped = 0;
+    final createdIds = <int>[];
+    Transaction? lastCreated;
     try {
       final repo = ref.read(transactionRepositoryProvider);
       for (final it in selected) {
@@ -282,7 +292,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
           skipped++;
           continue;
         }
-        await repo.create(TransactionCreateData(
+        final tx = await repo.create(TransactionCreateData(
           type: isIncome ? 'INCOME' : 'EXPENSE',
           amount: amount,
           description: it.description.trim().isEmpty ? null : it.description.trim(),
@@ -290,13 +300,59 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
           categoryId: cat.id,
           walletId: _selectedWallet?.id,
         ));
+        createdIds.add(tx.id);
+        lastCreated = tx;
         created++;
       }
       if (!mounted) return;
-      showSuccessSnackBar(context, created > 0 ? 'Đã tạo $created giao dịch!' : 'Không tạo được giao dịch nào.');
+      ref.read(transactionListRefreshTriggerProvider.notifier).state++;
       if (skipped > 0) {
         showInfoSnackBar(context, 'Bỏ qua $skipped khoản (thiếu số tiền hoặc không khớp danh mục).');
       }
+      if (createdIds.length == 1 && lastCreated != null) {
+        setState(() {
+          _savedTransaction = lastCreated;
+          _isSaving = false;
+        });
+      } else {
+        Navigator.pop(context, createdIds);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = extractErrorMessage(e);
+        _isSaving = false;
+      });
+    }
+  }
+
+  Future<void> _undoTransaction() async {
+    final id = _transactionId;
+    if (id == null) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Thu hồi giao dịch?'),
+        content: const Text('Giao dịch sẽ bị xóa khỏi danh sách.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hủy')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.accent),
+            child: const Text('Thu hồi'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() {
+      _isSaving = true;
+      _error = null;
+    });
+    try {
+      await ref.read(transactionRepositoryProvider).delete(id);
+      ref.read(transactionListRefreshTriggerProvider.notifier).state++;
+      if (!mounted) return;
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
@@ -331,6 +387,40 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     });
 
     try {
+      if (_isExpense) {
+        try {
+          final checkRes = await apiClient.post(ApiConstants.spendingLimitsCheckTransaction, data: {
+            'categoryId': _selectedCategory!.id,
+            'amount': amount,
+            'transactionDate': _selectedDate.toIso8601String().split('T').first,
+            'type': 'EXPENSE',
+            if (_isEditMode && _transactionId != null) 'excludeTransactionId': _transactionId,
+          });
+          final checkData = checkRes['data'] as Map<String, dynamic>?;
+          if (checkData != null && checkData['hasWarning'] == true) {
+            final msg = checkData['message'] as String? ?? 'Giao dịch này có thể vượt hạn mức chi tiêu.';
+            if (!mounted) return;
+            final proceed = await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Cảnh báo hạn mức chi tiêu'),
+                content: Text(msg),
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hủy')),
+                  FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Tiếp tục tạo')),
+                ],
+              ),
+            );
+            if (proceed != true) {
+              setState(() => _isSaving = false);
+              return;
+            }
+          }
+        } catch (_) {
+          // offline hoặc lỗi API — vẫn cho phép lưu local
+        }
+      }
+
       final data = TransactionCreateData(
         type: _isExpense ? 'EXPENSE' : 'INCOME',
         amount: amount,
@@ -339,22 +429,92 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
         categoryId: _selectedCategory!.id,
         walletId: _selectedWallet?.id,
       );
-      if (_isEditMode) {
-        await ref.read(transactionRepositoryProvider).update(widget.transactionToEdit!.id, data);
+      if (_transactionId != null) {
+        final updated = await ref.read(transactionRepositoryProvider).update(_transactionId!, data);
+        ref.read(transactionListRefreshTriggerProvider.notifier).state++;
         if (!mounted) return;
+        setState(() {
+          _savedTransaction = updated;
+          _isSaving = false;
+        });
         showSuccessSnackBar(context, 'Đã cập nhật giao dịch!');
       } else {
-        await ref.read(transactionRepositoryProvider).create(data);
+        final created = await ref.read(transactionRepositoryProvider).create(data);
+        ref.read(transactionListRefreshTriggerProvider.notifier).state++;
         if (!mounted) return;
-        showSuccessSnackBar(context, 'Đã thêm giao dịch thành công!');
+        setState(() {
+          _savedTransaction = created;
+          _isSaving = false;
+        });
       }
-      if (mounted) Navigator.pop(context);
     } catch (e) {
       setState(() {
         _error = extractErrorMessage(e);
         _isSaving = false;
       });
     }
+  }
+
+  Widget _buildCategoryPicker(BuildContext context) {
+    if (_isLoadingMeta) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    if (_categoriesLoadError != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _categoriesLoadError!,
+            style: GoogleFonts.nunito(fontSize: 13, color: AppColors.accent),
+          ),
+          const SizedBox(height: 12),
+          TextButton.icon(
+            onPressed: () {
+              setState(() => _isLoadingMeta = true);
+              _loadCategoriesAndWallets();
+            },
+            icon: const Icon(Icons.refresh_rounded, size: 20),
+            label: Text('Thử lại', style: GoogleFonts.nunito(fontWeight: FontWeight.w600)),
+          ),
+        ],
+      );
+    }
+    final pool = _isExpense ? _expenseCategories : _incomeCategories;
+    if (pool.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _isExpense
+                ? 'Chưa có danh mục chi tiêu. Thêm tại Cài đặt → Danh mục.'
+                : 'Chưa có danh mục thu nhập. Thêm trong màn hình Danh mục.',
+            style: GoogleFonts.nunito(fontSize: 13, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 12),
+          TextButton.icon(
+            onPressed: () => Navigator.pushNamed(context, AppRouter.categories).then((_) {
+              setState(() => _isLoadingMeta = true);
+              _loadCategoriesAndWallets();
+            }),
+            icon: const Icon(Icons.category_rounded, size: 20),
+            label: Text('Mở danh mục', style: GoogleFonts.nunito(fontWeight: FontWeight.w600)),
+          ),
+        ],
+      );
+    }
+    return _CategoryGrid(
+      categories: pool,
+      selected: _selectedCategory,
+      onSelect: (c) {
+        HapticUtils.selection();
+        setState(() => _selectedCategory = c);
+      },
+    );
   }
 
   @override
@@ -380,9 +540,8 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     IconButton(
                       icon: const Icon(Icons.close_rounded),
@@ -391,11 +550,35 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                         Navigator.pop(context);
                       },
                     ),
-                    Text(
-                      _isEditMode ? 'Sửa giao dịch' : 'Thêm giao dịch',
-                      style: GoogleFonts.nunito(fontSize: 18, fontWeight: FontWeight.w700),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          Text(
+                            _isEditMode ? 'Sửa giao dịch' : 'Thêm giao dịch',
+                            style: GoogleFonts.nunito(fontSize: 18, fontWeight: FontWeight.w800),
+                          ),
+                          Text(
+                            'Ghi chép thu chi nhanh, chính xác',
+                            style: GoogleFonts.nunito(fontSize: 12, color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(width: 48),
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [AppColors.primary, AppColors.primaryDark],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        _isEditMode ? Icons.edit_rounded : Icons.add_rounded,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -412,48 +595,47 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       if (!_isEditMode) ...[
-                        CardContainer(
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                AppColors.primary.withValues(alpha: 0.12),
+                                Colors.white,
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(22),
+                            border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+                            boxShadow: AppColors.cardShadow,
+                          ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
                                 children: [
-                                  Expanded(
-                                    child: Text(
-                                      'Nhập nhanh (VD: ăn trưa 50k)',
-                                      style: GoogleFonts.nunito(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppColors.textPrimary,
-                                      ),
-                                    ),
+                                  Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 20),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Nhập nhanh với AI',
+                                    style: GoogleFonts.nunito(fontSize: 15, fontWeight: FontWeight.w800),
                                   ),
-                                  // Nút quét hóa đơn nhỏ gọn — ở góc phải header.
-                                  Tooltip(
-                                    message: 'Quét hóa đơn bằng camera',
-                                    child: TextButton.icon(
-                                      onPressed: _scanReceipt,
-                                      style: TextButton.styleFrom(
-                                        foregroundColor: AppColors.primary,
-                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                        minimumSize: Size.zero,
-                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(10),
-                                        ),
-                                        backgroundColor: AppColors.primary.withOpacity(0.10),
-                                      ),
-                                      icon: const Icon(Icons.document_scanner_rounded, size: 18),
-                                      label: Text(
-                                        'Quét',
-                                        style: GoogleFonts.nunito(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
+                                  const Spacer(),
+                                  TextButton.icon(
+                                    onPressed: _scanReceipt,
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: AppColors.primary,
+                                      backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                                     ),
+                                    icon: const Icon(Icons.document_scanner_rounded, size: 18),
+                                    label: Text('Quét', style: GoogleFonts.nunito(fontWeight: FontWeight.w800)),
                                   ),
                                 ],
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'VD: ăn trưa 50k, grab 30k + cà phê 45k',
+                                style: GoogleFonts.nunito(fontSize: 12, color: AppColors.textSecondary),
                               ),
                               const SizedBox(height: 12),
                               Row(
@@ -462,276 +644,233 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                                     child: TextField(
                                       controller: _naturalInputController,
                                       decoration: InputDecoration(
-                                        hintText: 'ăn trưa 50k, grab 30k...',
+                                        hintText: 'Mô tả tự nhiên...',
                                         hintStyle: GoogleFonts.nunito(color: AppColors.textMuted),
+                                        filled: true,
+                                        fillColor: Colors.white,
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(14),
+                                          borderSide: BorderSide(color: AppColors.textMuted.withValues(alpha: 0.2)),
+                                        ),
                                       ),
                                       onSubmitted: (_) => _aiCategorize(),
                                     ),
                                   ),
                                   const SizedBox(width: 8),
-                                  Tooltip(
-                                    message: 'Phân loại bằng AI',
-                                    child: IconButton.filled(
-                                      onPressed: _isAiLoading ? null : _aiCategorize,
-                                      icon: _isAiLoading
-                                          ? const SizedBox(
-                                              width: 22,
-                                              height: 22,
-                                              child: CircularProgressIndicator(strokeWidth: 2),
-                                            )
-                                          : const Icon(Icons.auto_awesome_rounded),
+                                  IconButton.filled(
+                                    onPressed: _isAiLoading ? null : _aiCategorize,
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: AppColors.primary,
+                                      foregroundColor: Colors.white,
                                     ),
+                                    icon: _isAiLoading
+                                        ? const SizedBox(
+                                            width: 22,
+                                            height: 22,
+                                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                          )
+                                        : const Icon(Icons.auto_awesome_rounded),
                                   ),
                                 ],
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 24),
                       ],
-                      CardContainer(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Loại giao dịch',
-                              style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _TypeChip(
-                                    label: 'Chi tiêu',
-                                    isSelected: _isExpense,
-                                    onTap: () {
-                                      setState(() {
-                                        _isExpense = true;
-                                        _selectedCategory = _expenseCategories.isNotEmpty ? _expenseCategories.first : null;
-                                      });
-                                    },
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: _TypeChip(
-                                    label: 'Thu nhập',
-                                    isSelected: !_isExpense,
-                                    onTap: () {
-                                      setState(() {
-                                        _isExpense = false;
-                                        _selectedCategory = _incomeCategories.isNotEmpty ? _incomeCategories.first : null;
-                                      });
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
+                      TransactionFormSection(
+                        title: 'Loại giao dịch',
+                        child: TransactionTypeToggle(
+                          isExpense: _isExpense,
+                          onChanged: (exp) {
+                            setState(() {
+                              _isExpense = exp;
+                              _selectedCategory = exp
+                                  ? (_expenseCategories.isNotEmpty ? _expenseCategories.first : null)
+                                  : (_incomeCategories.isNotEmpty ? _incomeCategories.first : null);
+                            });
+                          },
                         ),
                       ),
-                      const SizedBox(height: 20),
-                      CardContainer(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Số tiền (₫)',
-                              style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-                            ),
-                            const SizedBox(height: 12),
-                            TextField(
-                              controller: _amountController,
-                              keyboardType: TextInputType.number,
-                              style: GoogleFonts.nunito(fontSize: 18, fontWeight: FontWeight.w600),
-                              decoration: InputDecoration(
-                                hintText: '0',
-                                prefixText: '₫ ',
-                              ),
-                            ),
-                            if (!_isEditMode) ...[
-                              const SizedBox(height: 12),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: [
-                                  _QuickAmountChip(label: '+10k', onTap: () => _quickAmount(10000)),
-                                  _QuickAmountChip(label: '+50k', onTap: () => _quickAmount(50000)),
-                                  _QuickAmountChip(label: '+100k', onTap: () => _quickAmount(100000)),
-                                  _QuickAmountChip(label: '+500k', onTap: () => _quickAmount(500000)),
-                                ],
-                              ),
-                            ],
-                          ],
+                      TransactionFormSection(
+                        title: 'Số tiền',
+                        child: AmountInputSection(
+                          controller: _amountController,
+                          isExpense: _isExpense,
+                          showQuickAmounts: !_isEditMode,
+                          onQuickAdd: _quickAmount,
+                          onChanged: () => setState(() {}),
                         ),
                       ),
-                      const SizedBox(height: 20),
-                      if (_wallets.isNotEmpty) ...[
-                        CardContainer(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Ví',
-                                style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-                              ),
-                              const SizedBox(height: 12),
-                            if (_isLoadingMeta)
-                                const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2)))
-                              else
-                                Wrap(
+                      if (_wallets.isNotEmpty)
+                        TransactionFormSection(
+                          title: 'Ví',
+                          subtitle: 'Giao dịch sẽ ghi vào ví này',
+                          child: _isLoadingMeta
+                              ? const Center(
+                                  child: Padding(
+                                    padding: EdgeInsets.all(12),
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  ),
+                                )
+                              : Wrap(
                                   spacing: 8,
                                   runSpacing: 8,
-                                  children: _wallets.map((w) => GestureDetector(
-                                    onTap: () {
-                                      HapticUtils.selection();
-                                      setState(() => _selectedWallet = w);
-                                    },
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                                      decoration: BoxDecoration(
-                                        color: _selectedWallet?.id == w.id ? AppColors.primary : AppColors.surface,
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: _selectedWallet?.id == w.id ? AppColors.primary : AppColors.textMuted.withOpacity(0.3),
+                                  children: _wallets.map((w) {
+                                    final selected = _selectedWallet?.id == w.id;
+                                    return GestureDetector(
+                                      onTap: () {
+                                        HapticUtils.selection();
+                                        setState(() => _selectedWallet = w);
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                        decoration: BoxDecoration(
+                                          color: selected ? AppColors.primary : AppColors.surface,
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(
+                                            color: selected
+                                                ? AppColors.primary
+                                                : AppColors.textMuted.withValues(alpha: 0.3),
+                                            width: selected ? 2 : 1,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              Icons.account_balance_wallet_rounded,
+                                              size: 18,
+                                              color: selected ? Colors.white : AppColors.textSecondary,
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              w.name,
+                                              style: GoogleFonts.nunito(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w600,
+                                                color: selected ? Colors.white : AppColors.textPrimary,
+                                              ),
+                                            ),
+                                            if (w.isDefault) ...[
+                                              const SizedBox(width: 4),
+                                              Icon(
+                                                Icons.star_rounded,
+                                                size: 14,
+                                                color: selected ? Colors.white : AppColors.primary,
+                                              ),
+                                            ],
+                                          ],
                                         ),
                                       ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            Icons.account_balance_wallet_rounded,
-                                            size: 18,
-                                            color: _selectedWallet?.id == w.id ? Colors.white : AppColors.textSecondary,
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            w.name,
-                                            style: GoogleFonts.nunito(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w500,
-                                              color: _selectedWallet?.id == w.id ? Colors.white : AppColors.textPrimary,
-                                            ),
-                                          ),
-                                          if (w.isDefault) ...[
-                                            const SizedBox(width: 4),
-                                            Icon(Icons.star_rounded, size: 14, color: _selectedWallet?.id == w.id ? Colors.white : AppColors.primary),
-                                          ],
-                                        ],
-                                      ),
-                                    ),
-                                  )).toList(),
+                                    );
+                                  }).toList(),
                                 ),
-                            ],
+                        ),
+                      TransactionFormSection(
+                        title: 'Mô tả',
+                        subtitle: 'Tùy chọn — giúp bạn nhớ khoản này',
+                        child: TextField(
+                          controller: _descriptionController,
+                          decoration: InputDecoration(
+                            hintText: 'VD: Cơm trưa với team',
+                            filled: true,
+                            fillColor: AppColors.surface,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(color: AppColors.textMuted.withValues(alpha: 0.2)),
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 20),
-                      ],
-                      CardContainer(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Mô tả',
-                              style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-                            ),
-                            const SizedBox(height: 8),
-                            TextField(
-                              controller: _descriptionController,
-                              decoration: const InputDecoration(hintText: 'Mô tả (tùy chọn)'),
-                            ),
-                          ],
-                        ),
                       ),
-                      const SizedBox(height: 20),
-                      CardContainer(
-                        onTap: () async {
-                          final date = await showDatePicker(
-                            context: context,
-                            initialDate: _selectedDate,
-                            firstDate: DateTime(2020),
-                            lastDate: DateTime.now(),
-                          );
-                          if (date != null) setState(() => _selectedDate = date);
-                        },
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Ngày',
-                              style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-                            ),
-                            Text(
-                              DateFormat('dd/MM/yyyy').format(_selectedDate),
-                              style: GoogleFonts.nunito(fontSize: 16, color: AppColors.textSecondary),
-                            ),
-                            const Icon(Icons.calendar_today_rounded, size: 20, color: AppColors.textMuted),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      CardContainer(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Danh mục',
-                              style: GoogleFonts.nunito(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-                            ),
-                            const SizedBox(height: 12),
-                            if (_isLoadingMeta)
-                              const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
-                            else if (_categoriesLoadError != null)
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    _categoriesLoadError!,
-                                    style: GoogleFonts.nunito(fontSize: 13, color: AppColors.accent),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  TextButton.icon(
-                                    onPressed: () {
-                                      setState(() => _isLoadingMeta = true);
-                                      _loadCategoriesAndWallets();
-                                    },
-                                    icon: const Icon(Icons.refresh_rounded, size: 20),
-                                    label: Text('Thử lại', style: GoogleFonts.nunito(fontWeight: FontWeight.w600)),
-                                  ),
-                                ],
-                              )
-                            else if ((_isExpense ? _expenseCategories : _incomeCategories).isEmpty)
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    _isExpense
-                                        ? 'Chưa có danh mục chi tiêu. Thêm tại Cài đặt → Danh mục, hoặc đăng nhập lại để tải danh mục mặc định.'
-                                        : 'Chưa có danh mục thu nhập. Thêm trong màn hình Danh mục.',
-                                    style: GoogleFonts.nunito(fontSize: 13, color: AppColors.textSecondary),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  TextButton.icon(
-                                    onPressed: () => Navigator.pushNamed(context, AppRouter.categories).then((_) {
-                                      setState(() => _isLoadingMeta = true);
-                                      _loadCategoriesAndWallets();
-                                    }),
-                                    icon: const Icon(Icons.category_rounded, size: 20),
-                                    label: Text('Mở danh mục', style: GoogleFonts.nunito(fontWeight: FontWeight.w600)),
-                                  ),
-                                ],
-                              )
-                            else
-                              _CategoryGrid(
-                                categories: _isExpense ? _expenseCategories : _incomeCategories,
-                                selected: _selectedCategory,
-                                onSelect: (c) {
-                                  HapticUtils.selection();
-                                  setState(() => _selectedCategory = c);
+                      TransactionFormSection(
+                        title: 'Ngày giao dịch',
+                        subtitle: 'Nhấn để mở lịch chọn ngày',
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () async {
+                              HapticUtils.selection();
+                              final date = await showDatePicker(
+                                context: context,
+                                initialDate: _selectedDate,
+                                firstDate: DateTime(2020),
+                                lastDate: DateTime.now(),
+                                helpText: 'Chọn ngày giao dịch',
+                                cancelText: 'Hủy',
+                                confirmText: 'Chọn',
+                                builder: (context, child) {
+                                  return Theme(
+                                    data: Theme.of(context).copyWith(
+                                      colorScheme: ColorScheme.light(
+                                        primary: AppColors.primary,
+                                        onPrimary: Colors.white,
+                                        surface: Colors.white,
+                                        onSurface: AppColors.textPrimary,
+                                      ),
+                                    ),
+                                    child: child!,
+                                  );
                                 },
+                              );
+                              if (date != null) setState(() => _selectedDate = date);
+                            },
+                            borderRadius: BorderRadius.circular(14),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                              decoration: BoxDecoration(
+                                color: AppColors.surface,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
                               ),
-                          ],
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(Icons.event_rounded, size: 22, color: AppColors.primary),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Ngày giao dịch',
+                                          style: GoogleFonts.nunito(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                            color: AppColors.textMuted,
+                                          ),
+                                        ),
+                                        Text(
+                                          DateFormat('EEEE, dd/MM/yyyy', 'vi').format(_selectedDate),
+                                          style: GoogleFonts.nunito(fontSize: 15, fontWeight: FontWeight.w800),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: const Icon(Icons.calendar_month_rounded, size: 20, color: AppColors.primary),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
+                      ),
+                      TransactionFormSection(
+                        title: 'Danh mục',
+                        subtitle: 'Chọn danh mục ${_isExpense ? 'chi tiêu' : 'thu nhập'}',
+                        child: _buildCategoryPicker(context),
                       ),
                       if (_error != null) ...[
                         const SizedBox(height: 16),
@@ -744,96 +883,83 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                           child: Text(_error!, style: GoogleFonts.nunito(color: AppColors.accent)),
                         ),
                       ],
-                      const SizedBox(height: 32),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: _isSaving ? null : _save,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            elevation: 0,
+                      if (_savedTransaction != null && widget.transactionToEdit == null) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.income.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.income.withOpacity(0.25)),
                           ),
-                          child: _isSaving
-                              ? const SizedBox(
-                                  height: 24,
-                                  width: 24,
-                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                )
-                              : Text(
-                                  _isEditMode ? 'Cập nhật' : 'Lưu',
-                                  style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
-                                ),
+                          child: Text(
+                            'Giao dịch đã được lưu. Bạn có thể cập nhật hoặc thu hồi nếu nhập nhầm.',
+                            style: GoogleFonts.nunito(fontSize: 13, color: AppColors.textSecondary, height: 1.4),
+                          ),
                         ),
+                      ],
+                      if (_isEditMode) ...[
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: _isSaving ? null : _undoTransaction,
+                            icon: const Icon(Icons.delete_outline_rounded),
+                            label: const Text('Thu hồi giao dịch'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.accent,
+                              side: BorderSide(color: AppColors.accent.withOpacity(0.5)),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            ),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          if (_isEditMode)
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: _isSaving ? null : () => Navigator.pop(context),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                ),
+                                child: Text('Xong', style: GoogleFonts.nunito(fontWeight: FontWeight.w700)),
+                              ),
+                            ),
+                          if (_isEditMode) const SizedBox(width: 12),
+                          Expanded(
+                            flex: _isEditMode ? 1 : 1,
+                            child: ElevatedButton(
+                              onPressed: _isSaving ? null : _save,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _isExpense ? AppColors.expense : AppColors.income,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                elevation: 0,
+                              ),
+                              child: _isSaving
+                                  ? const SizedBox(
+                                      height: 24,
+                                      width: 24,
+                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                    )
+                                  : Text(
+                                      _isEditMode ? 'Cập nhật' : 'Lưu giao dịch',
+                                      style: GoogleFonts.nunito(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white),
+                                    ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ),
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _TypeChip extends StatelessWidget {
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _TypeChip({required this.label, required this.isSelected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary : AppColors.surface,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              color: isSelected ? Colors.white : AppColors.textSecondary,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _QuickAmountChip extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
-
-  const _QuickAmountChip({required this.label, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color: AppColors.primary.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.primary.withOpacity(0.3)),
-          ),
-          child: Text(
-            label,
-            style: GoogleFonts.nunito(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.primary),
           ),
         ),
       ),
@@ -853,18 +979,22 @@ class _CategoryGrid extends StatelessWidget {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: categories
-          .map((c) => GestureDetector(
+      children: categories.asMap().entries.map((entry) {
+        final i = entry.key;
+        final c = entry.value;
+        final color = AppColors.chartCategoryPalette[i % AppColors.chartCategoryPalette.length];
+        final isSelected = selected?.id == c.id;
+        return GestureDetector(
                 onTap: () => onSelect(c),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
-                    color: selected?.id == c.id ? AppColors.primary : AppColors.surface,
+                    color: isSelected ? color : AppColors.surface,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: selected?.id == c.id ? AppColors.primary : AppColors.textMuted.withOpacity(0.3),
-                      width: selected?.id == c.id ? 2 : 1,
+                      color: isSelected ? color : AppColors.textMuted.withValues(alpha: 0.3),
+                      width: isSelected ? 2 : 1,
                     ),
                   ),
                   child: Row(
@@ -873,33 +1003,24 @@ class _CategoryGrid extends StatelessWidget {
                       Icon(
                         _iconForCategory(c.name),
                         size: 18,
-                        color: selected?.id == c.id ? Colors.white : AppColors.textSecondary,
+                        color: isSelected ? Colors.white : color,
                       ),
                       const SizedBox(width: 6),
                       Text(
                         c.name,
                         style: GoogleFonts.nunito(
                           fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: selected?.id == c.id ? Colors.white : AppColors.textPrimary,
+                          fontWeight: FontWeight.w600,
+                          color: isSelected ? Colors.white : AppColors.textPrimary,
                         ),
                       ),
                     ],
                   ),
                 ),
-              ))
-          .toList(),
+              );
+      }).toList(),
     );
   }
 
-  IconData _iconForCategory(String name) {
-    final n = name.toLowerCase();
-    if (n.contains('ăn') || n.contains('food') || n.contains('đồ ăn')) return Icons.restaurant_rounded;
-    if (n.contains('di chuyển') || n.contains('grab') || n.contains('xe')) return Icons.directions_car_rounded;
-    if (n.contains('mua sắm') || n.contains('shopping')) return Icons.shopping_bag_rounded;
-    if (n.contains('giải trí')) return Icons.movie_rounded;
-    if (n.contains('sức khỏe') || n.contains('y tế')) return Icons.medical_services_rounded;
-    if (n.contains('lương') || n.contains('thu nhập')) return Icons.account_balance_wallet_rounded;
-    return Icons.category_rounded;
-  }
+  IconData _iconForCategory(String name) => categoryIconData(name: name);
 }

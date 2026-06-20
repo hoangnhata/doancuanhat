@@ -25,6 +25,12 @@ Body:
 
 from __future__ import annotations
 
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+
 import os
 from typing import Any, Optional
 
@@ -32,7 +38,13 @@ import httpx
 from pydantic import BaseModel, Field
 
 
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-1.5-flash")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite")
+GEMINI_FALLBACK_MODELS = (
+    "gemini-2.5-flash-lite",
+    "gemini-2.0-flash-lite",
+    "gemini-flash-lite-latest",
+    "gemini-2.5-flash",
+)
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
 GEMINI_TIMEOUT_S = float(os.environ.get("GEMINI_TIMEOUT_S", "20"))
 
@@ -130,7 +142,6 @@ def _call_gemini(prompt: str, system: str) -> Optional[str]:
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if not api_key:
         return None
-    url = GEMINI_API_URL.format(model=GEMINI_MODEL, key=api_key)
     payload: dict[str, Any] = {
         "systemInstruction": {"parts": [{"text": system}]},
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
@@ -140,19 +151,34 @@ def _call_gemini(prompt: str, system: str) -> Optional[str]:
             "maxOutputTokens": 700,
         },
     }
+    models: list[str] = []
+    for m in (GEMINI_MODEL, *GEMINI_FALLBACK_MODELS):
+        if m not in models:
+            models.append(m)
     try:
         with httpx.Client(timeout=GEMINI_TIMEOUT_S) as client:
-            r = client.post(url, json=payload)
-            r.raise_for_status()
-            data = r.json()
-            candidates = data.get("candidates") or []
-            if not candidates:
-                return None
-            parts = candidates[0].get("content", {}).get("parts") or []
-            text = "".join(p.get("text", "") for p in parts).strip()
-            return text or None
-    except Exception:
-        return None
+            for model in models:
+                url = GEMINI_API_URL.format(model=model, key=api_key)
+                try:
+                    r = client.post(url, json=payload)
+                    r.raise_for_status()
+                    data = r.json()
+                    candidates = data.get("candidates") or []
+                    if not candidates:
+                        continue
+                    parts = candidates[0].get("content", {}).get("parts") or []
+                    text = "".join(p.get("text", "") for p in parts).strip()
+                    if text:
+                        return text
+                except httpx.HTTPStatusError as exc:
+                    status = exc.response.status_code
+                    if status in (404, 429, 503):
+                        continue
+                    raise
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning("Gemini call failed: %s", exc)
+    return None
 
 
 def _rule_reply(message: str, ctx: Optional[ChatContext], personality: Optional[str]) -> str:
