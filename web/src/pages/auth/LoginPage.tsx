@@ -57,7 +57,6 @@ export function LoginPage() {
       <AuthShell
         title="Đăng nhập"
         subtitle="Chào mừng trở lại! Tiếp tục theo dõi chi tiêu và trò chuyện với trợ lý AI."
-        showDemoHint
         footer={
           <Typography variant="body2" color="text.secondary">
             Bạn chưa có tài khoản?{' '}

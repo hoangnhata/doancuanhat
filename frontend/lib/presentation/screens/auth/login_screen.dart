@@ -64,7 +64,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return AuthShell(
       title: 'Đăng nhập',
       subtitle: 'Chào mừng trở lại! Tiếp tục theo dõi chi tiêu và trò chuyện với trợ lý AI.',
-      showDemoHint: true,
       footer: TextButton(
         onPressed: () {
           HapticUtils.selection();

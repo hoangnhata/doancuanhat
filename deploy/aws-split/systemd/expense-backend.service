@@ -1,0 +1,17 @@
+[Unit]
+Description=Expense Manager Backend (Spring Boot) — AWS
+After=network.target
+
+[Service]
+Type=simple
+User=%APP_USER%
+Group=%APP_USER%
+WorkingDirectory=%APP_DIR%/backend
+EnvironmentFile=/etc/expense-manager/production.env
+ExecStart=/usr/bin/java -Xms256m -Xmx512m -jar %APP_DIR%/backend/target/expense-manager-1.0.0.jar
+Restart=always
+RestartSec=15
+TimeoutStartSec=180
+
+[Install]
+WantedBy=multi-user.target

@@ -1,4 +1,4 @@
-import { Box, Chip, Stack, Typography, useMediaQuery, useTheme } from '@mui/material';
+import { Box, Stack, Typography, useMediaQuery, useTheme } from '@mui/material';
 import {
   AutoGraphRounded,
   SavingsRounded,
@@ -14,7 +14,6 @@ type Props = {
   subtitle: string;
   children: ReactNode;
   footer?: ReactNode;
-  showDemoHint?: boolean;
 };
 
 const features = [
@@ -114,7 +113,7 @@ function BrandPanel() {
   );
 }
 
-export function AuthShell({ title, subtitle, children, footer, showDemoHint }: Props) {
+export function AuthShell({ title, subtitle, children, footer }: Props) {
   const theme = useTheme();
   const isMd = useMediaQuery(theme.breakpoints.up('md'));
 
@@ -177,24 +176,9 @@ export function AuthShell({ title, subtitle, children, footer, showDemoHint }: P
               <Typography variant="h4" fontWeight={800} letterSpacing="-0.02em" gutterBottom>
                 {title}
               </Typography>
-              <Typography color="text.secondary" sx={{ mb: showDemoHint ? 1.5 : 2.5, lineHeight: 1.6 }}>
+              <Typography color="text.secondary" sx={{ mb: 2.5, lineHeight: 1.6 }}>
                 {subtitle}
               </Typography>
-
-              {showDemoHint && (
-                <Chip
-                  label="Demo AI: ai.demo@local.test / Demo@123456"
-                  size="small"
-                  sx={{
-                    alignSelf: 'flex-start',
-                    mb: 2,
-                    fontWeight: 600,
-                    bgcolor: `${palette.primary.main}12`,
-                    color: palette.primary.dark,
-                    border: `1px solid ${palette.primary.main}33`,
-                  }}
-                />
-              )}
 
               <Box component="div">{children}</Box>
 

@@ -9,7 +9,6 @@ class AuthShell extends StatelessWidget {
   final String subtitle;
   final Widget child;
   final Widget? footer;
-  final bool showDemoHint;
   final bool showBackButton;
   final VoidCallback? onBack;
 
@@ -19,7 +18,6 @@ class AuthShell extends StatelessWidget {
     required this.subtitle,
     required this.child,
     this.footer,
-    this.showDemoHint = false,
     this.showBackButton = false,
     this.onBack,
   });
@@ -57,7 +55,6 @@ class AuthShell extends StatelessWidget {
                       _FormCard(
                         title: title,
                         subtitle: subtitle,
-                        showDemoHint: showDemoHint,
                         child: child,
                         footer: footer,
                       ),
@@ -180,14 +177,12 @@ class _FeatureChip extends StatelessWidget {
 class _FormCard extends StatelessWidget {
   final String title;
   final String subtitle;
-  final bool showDemoHint;
   final Widget child;
   final Widget? footer;
 
   const _FormCard({
     required this.title,
     required this.subtitle,
-    required this.showDemoHint,
     required this.child,
     this.footer,
   });
@@ -219,21 +214,6 @@ class _FormCard extends StatelessWidget {
             subtitle,
             style: GoogleFonts.nunito(fontSize: 15, height: 1.5, color: AppColors.textSecondary),
           ),
-          if (showDemoHint) ...[
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
-              ),
-              child: Text(
-                'Demo AI: ai.demo@local.test / Demo@123456',
-                style: GoogleFonts.nunito(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primaryDark),
-              ),
-            ),
-          ],
           const SizedBox(height: 20),
           child,
           if (footer != null) ...[

@@ -1,0 +1,4 @@
+*.pt filter=lfs diff=lfs merge=lfs -text
+models/ocr_reco_model.pt filter=lfs diff=lfs merge=lfs -text
+models/forecast_model.pt filter=lfs diff=lfs merge=lfs -text
+models/classify_model.pt filter=lfs diff=lfs merge=lfs -text

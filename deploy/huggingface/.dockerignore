@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+.env
+*.ipynb
+.ipynb_checkpoints/
+data/
+data_train/
+models/_smoke*/
+models/grid_runs/
+models/ocr_reco_ckpt.pt
+models/classify_checkpoint.pt
+models/classify_best.pt
