@@ -32,8 +32,8 @@
 
   <title>Natta</title>
   <link rel="manifest" href="manifest.json">
-  <!-- sql.js: cần cho Drift (SQLite) trên web — đồng bộ offline/online -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+  <!-- sql.js local — tránh CDN lỗi wasm trên Safari iOS -->
+  <script src="sql-wasm.js"></script>
 </head>
 <body>
   <!--

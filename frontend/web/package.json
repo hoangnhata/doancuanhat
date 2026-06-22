@@ -1,0 +1,10 @@
+{
+  "name": "expense-web-assets",
+  "private": true,
+  "dependencies": {
+    "sql.js": "1.10.3"
+  },
+  "scripts": {
+    "postinstall": "node copy-sql-wasm.cjs"
+  }
+}
