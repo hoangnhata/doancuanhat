@@ -139,14 +139,15 @@ export function ReceiptOcrDialog({ open, onClose, onApply }: Props) {
   function applyAndClose() {
     if (!classifyResult || ocrAmount == null) return;
     const result: OcrReceiptResult = {
-      transactionType: classifyResult.transactionType,
+      transactionType:
+        classifyResult.transactionType === 'INCOME' ? 'INCOME' : 'EXPENSE',
       amount: ocrAmount,
-      transactionDate: ocrDate ?? classifyResult.transactionDate,
+      transactionDate: ocrDate ?? classifyResult.transactionDate ?? null,
       merchant: null,
       description:
         classifyResult.description?.trim() || description.trim() || null,
       categoryName: classifyResult.categoryName,
-      categoryId: classifyResult.categoryId,
+      categoryId: classifyResult.categoryId ?? null,
       confidence: ocrConfidence,
       needsReview: ocrNeedsReview || classifyResult.categoryId == null,
       ocrEngine,

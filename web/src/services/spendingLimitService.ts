@@ -1,5 +1,4 @@
 import { api, type ApiEnvelope } from '@/lib/api';
-import { parseCategory } from '@/services/mappers';
 
 export type SpendingLimitStatus = 'SAFE' | 'WARNING' | 'EXCEEDED';
 export type PeriodType = 'MONTHLY' | 'WEEKLY' | 'YEARLY' | 'CUSTOM';
