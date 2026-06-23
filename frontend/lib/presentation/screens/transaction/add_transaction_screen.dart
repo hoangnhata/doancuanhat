@@ -11,6 +11,7 @@ import 'package:expense_manager/core/utils/snackbar_utils.dart';
 import 'package:expense_manager/domain/models/category.dart';
 import 'package:expense_manager/domain/models/ai_categorize.dart';
 import 'package:expense_manager/domain/models/ocr_receipt.dart';
+import 'package:expense_manager/domain/models/saving_goal.dart';
 import 'package:expense_manager/domain/models/transaction.dart';
 import 'package:expense_manager/domain/models/wallet.dart';
 import 'package:expense_manager/domain/repositories/transaction_repository.dart';
@@ -24,8 +25,9 @@ import 'package:expense_manager/presentation/widgets/transaction/transaction_for
 
 class AddTransactionScreen extends ConsumerStatefulWidget {
   final Transaction? transactionToEdit;
+  final SpendFromSavingGoalArgs? spendFromGoal;
 
-  const AddTransactionScreen({super.key, this.transactionToEdit});
+  const AddTransactionScreen({super.key, this.transactionToEdit, this.spendFromGoal});
 
   @override
   ConsumerState<AddTransactionScreen> createState() => _AddTransactionScreenState();
@@ -49,8 +51,10 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   String? _error;
   String? _categoriesLoadError;
   Transaction? _savedTransaction;
+  bool _spendSuccess = false;
 
   bool get _isEditMode => widget.transactionToEdit != null || _savedTransaction != null;
+  bool get _isSpendFromGoal => widget.spendFromGoal != null;
 
   int? get _transactionId => widget.transactionToEdit?.id ?? _savedTransaction?.id;
 
@@ -64,6 +68,12 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
       _selectedDate = t.transactionDate;
       _amountController.text = t.amount.toStringAsFixed(0);
       _descriptionController.text = t.description ?? '';
+    } else if (widget.spendFromGoal != null) {
+      final goal = widget.spendFromGoal!;
+      _isExpense = true;
+      _selectedDate = DateTime.now();
+      _amountController.text = goal.amount.toStringAsFixed(0);
+      _descriptionController.text = 'Chi tiêu cho mục tiêu tiết kiệm: ${goal.name}';
     } else {
       _isExpense = true;
       _selectedDate = DateTime.now();
@@ -88,7 +98,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
       if (_selectedCategory == null) {
         if (_isEditMode) {
           _selectedCategory = widget.transactionToEdit?.category ?? _savedTransaction?.category;
-        } else if (_expenseCategories.isNotEmpty) {
+        } else if (!_isSpendFromGoal && _expenseCategories.isNotEmpty) {
           _selectedCategory = _isExpense ? _expenseCategories.first : (_incomeCategories.isNotEmpty ? _incomeCategories.first : null);
         }
       }
@@ -103,6 +113,84 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
       _categoriesLoadError = extractErrorMessage(e);
     }
     if (mounted) setState(() => _isLoadingMeta = false);
+    if (_isSpendFromGoal && widget.spendFromGoal != null) {
+      await _categorizeSavingGoalByName(
+        widget.spendFromGoal!.name,
+        amount: widget.spendFromGoal!.amount,
+      );
+    }
+  }
+
+  Category? _guessCategoryFromGoalName(List<Category> cats, String goalName) {
+    final t = goalName.toLowerCase();
+    final rules = <(RegExp, String)>[
+      (RegExp(r'\b(laptop|lap\s*top|mua\s+lap\b|macbook|ipad|iphone|điện thoại|dien thoai|máy tính|may tinh)\b'), 'Mua sắm'),
+      (RegExp(r'\b(mua|sắm|sam|shop|shopee|lazada|tiki|quần áo|giày)\b'), 'Mua sắm'),
+      (RegExp(r'\b(du lịch|du lich|khách sạn|tour|vé máy bay)\b'), 'Du lịch'),
+      (RegExp(r'\b(xe|ô tô|oto|xăng|grab|uber|taxi)\b'), 'Di chuyển'),
+      (RegExp(r'\b(ăn|uống|cơm|phở|cafe|trà sữa)\b'), 'Ăn uống'),
+    ];
+    for (final (re, label) in rules) {
+      if (!re.hasMatch(t)) continue;
+      for (final c in cats) {
+        final n = c.name.toLowerCase();
+        if (n == label.toLowerCase() || n.contains(label.toLowerCase())) return c;
+      }
+    }
+    return null;
+  }
+
+  Category? _matchCategoryFromAi(List<Category> cats, AICategorizeResult result) {
+    if (result.categoryId != null) {
+      final byId = cats.where((c) => c.id == result.categoryId).firstOrNull;
+      if (byId != null) return byId;
+    }
+    final raw = result.categoryName.toLowerCase();
+    if (raw.isEmpty) return null;
+    return cats.where((c) {
+      final n = c.name.toLowerCase();
+      return n == raw || n.contains(raw) || raw.contains(n);
+    }).firstOrNull;
+  }
+
+  Future<void> _categorizeSavingGoalByName(String goalName, {double? amount}) async {
+    if (!mounted) return;
+    setState(() {
+      _isAiLoading = true;
+      _error = null;
+    });
+    try {
+      final user = ref.read(currentUserProvider).value;
+      final local = _guessCategoryFromGoalName(_expenseCategories, goalName);
+      if (local != null) {
+        setState(() => _selectedCategory = local);
+      }
+
+      final aiText = amount != null
+          ? '$goalName ${amount.toStringAsFixed(0)}'
+          : goalName;
+      final result = await ref.read(transactionRepositoryProvider).aiCategorize(
+            aiText,
+            personality: user?.botPersonality,
+          );
+      if (!mounted) return;
+      final aiMatch = _matchCategoryFromAi(_expenseCategories, result);
+      setState(() {
+        if (aiMatch != null) {
+          _selectedCategory = aiMatch;
+        } else if (_selectedCategory == null && _expenseCategories.isNotEmpty) {
+          _selectedCategory = _expenseCategories.first;
+        }
+        _isAiLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _selectedCategory ??= _guessCategoryFromGoalName(_expenseCategories, goalName)
+            ?? (_expenseCategories.isNotEmpty ? _expenseCategories.first : null);
+        _isAiLoading = false;
+      });
+    }
   }
 
   Future<void> _scanReceipt() async {
@@ -429,6 +517,31 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
         categoryId: _selectedCategory!.id,
         walletId: _selectedWallet?.id,
       );
+      if (_isSpendFromGoal && widget.spendFromGoal != null && _transactionId == null) {
+        if (_selectedWallet == null) {
+          setState(() {
+            _error = 'Vui lòng chọn ví';
+            _isSaving = false;
+          });
+          return;
+        }
+        await ref.read(savingGoalRepositoryProvider).spendFromGoal(
+          goalId: widget.spendFromGoal!.id,
+          categoryId: _selectedCategory!.id,
+          walletId: _selectedWallet!.id,
+          amount: amount,
+          transactionDate: _selectedDate.toIso8601String().split('T').first,
+          description: data.description,
+        );
+        ref.read(transactionListRefreshTriggerProvider.notifier).state++;
+        if (!mounted) return;
+        setState(() {
+          _spendSuccess = true;
+          _isSaving = false;
+        });
+        showSuccessSnackBar(context, 'Chi tiêu từ mục tiêu tiết kiệm thành công!');
+        return;
+      }
       if (_transactionId != null) {
         final updated = await ref.read(transactionRepositoryProvider).update(_transactionId!, data);
         ref.read(transactionListRefreshTriggerProvider.notifier).state++;
@@ -869,7 +982,11 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                       ),
                       TransactionFormSection(
                         title: 'Danh mục',
-                        subtitle: 'Chọn danh mục ${_isExpense ? 'chi tiêu' : 'thu nhập'}',
+                        subtitle: _isSpendFromGoal && _isAiLoading
+                            ? 'AI đang phân loại theo tên mục tiêu…'
+                            : _isSpendFromGoal && _selectedCategory != null
+                                ? 'AI gợi ý: ${_selectedCategory!.name} — có thể đổi trước khi lưu'
+                                : 'Chọn danh mục ${_isExpense ? 'chi tiêu' : 'thu nhập'}',
                         child: _buildCategoryPicker(context),
                       ),
                       if (_error != null) ...[

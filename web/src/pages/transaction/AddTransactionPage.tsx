@@ -22,8 +22,9 @@ import {
 } from '@mui/icons-material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { GradientBackground } from '@/components/common/GradientBackground';
+import { findCategoryFromAi, guessCategoryFromGoalName } from '@/lib/categoryMatch';
 import { AiAssistCard } from '@/components/transaction/AiAssistCard';
 import { AmountInputSection } from '@/components/transaction/AmountInputSection';
 import {
@@ -44,9 +45,18 @@ import * as transactionService from '@/services/transactionService';
 import * as walletService from '@/services/walletService';
 import type { OcrReceiptResult } from '@/services/transactionService';
 import * as spendingLimitService from '@/services/spendingLimitService';
+import * as savingGoalService from '@/services/savingGoalService';
 import type { CheckTransactionResult } from '@/services/spendingLimitService';
 import { palette } from '@/theme';
 import type { AICategorizeResponse } from '@/types/models';
+
+type SpendFromGoalState = {
+  fromSavingGoal?: {
+    id: number;
+    name: string;
+    amount: number;
+  };
+};
 
 export function AddTransactionPage() {
   const { id } = useParams();
@@ -72,6 +82,14 @@ export function AddTransactionPage() {
   const [ocrOpen, setOcrOpen] = useState(false);
   const [limitCheck, setLimitCheck] = useState<CheckTransactionResult | null>(null);
   const [limitDialogOpen, setLimitDialogOpen] = useState(false);
+  const [spendSuccess, setSpendSuccess] = useState(false);
+  const [linkedSavingGoal, setLinkedSavingGoal] = useState<
+    SpendFromGoalState['fromSavingGoal'] | null
+  >(null);
+  const [spendAiLoading, setSpendAiLoading] = useState(false);
+  const [spendAiCategoryHint, setSpendAiCategoryHint] = useState<string | null>(null);
+  const spendInitRef = useRef(false);
+  const spendCategorizeGoalIdRef = useRef<number | null>(null);
 
   const { data: existing, isLoading: loadingTx } = useQuery({
     queryKey: ['transaction', editId],
@@ -95,6 +113,74 @@ export function AddTransactionPage() {
   });
 
   const categories = isExpense ? expenseCats : incomeCats;
+
+  useEffect(() => {
+    const fromGoal = (location.state as SpendFromGoalState | null)?.fromSavingGoal;
+    if (!fromGoal || editId || spendInitRef.current) return;
+    spendInitRef.current = true;
+
+    setLinkedSavingGoal(fromGoal);
+    setIsExpense(true);
+    setAmount(String(Math.round(fromGoal.amount)));
+    setDescription(`Chi tiêu cho mục tiêu tiết kiệm: ${fromGoal.name}`);
+    navigate(location.pathname, { replace: true, state: null });
+
+    if (expenseCats.length > 0) {
+      const localMatch = guessCategoryFromGoalName(expenseCats, fromGoal.name);
+      if (localMatch) {
+        setCategoryId(localMatch.id);
+        setSpendAiCategoryHint(localMatch.name);
+      }
+    }
+  }, [editId, expenseCats, location.pathname, location.state, navigate]);
+
+  useEffect(() => {
+    if (!linkedSavingGoal || editId) return;
+    if (spendCategorizeGoalIdRef.current === linkedSavingGoal.id) return;
+
+    let cancelled = false;
+    (async () => {
+      setSpendAiLoading(true);
+      try {
+        const cats =
+          expenseCats.length > 0
+            ? expenseCats
+            : await categoryService.fetchCategories('EXPENSE');
+        if (cancelled || cats.length === 0) return;
+
+        const localMatch = guessCategoryFromGoalName(cats, linkedSavingGoal.name);
+        if (localMatch) {
+          setCategoryId(localMatch.id);
+          setSpendAiCategoryHint(localMatch.name);
+        }
+
+        spendCategorizeGoalIdRef.current = linkedSavingGoal.id;
+
+        const aiText = `${linkedSavingGoal.name} ${Math.round(linkedSavingGoal.amount)}`;
+        try {
+          const result = await transactionService.aiCategorize(aiText, user?.botPersonality);
+          if (cancelled) return;
+          const aiMatch = findCategoryFromAi(cats, result);
+          if (aiMatch) {
+            setCategoryId(aiMatch.id);
+            setSpendAiCategoryHint(aiMatch.name);
+          } else if (!localMatch) {
+            setCategoryId(cats[0].id);
+          }
+        } catch {
+          if (!localMatch && !cancelled) {
+            setCategoryId(cats[0].id);
+          }
+        }
+      } finally {
+        if (!cancelled) setSpendAiLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [linkedSavingGoal, expenseCats, editId, user?.botPersonality]);
 
   useEffect(() => {
     const created = (location.state as { justCreated?: boolean } | null)?.justCreated;
@@ -124,10 +210,11 @@ export function AddTransactionPage() {
   }, [wallets, selectedWalletId, walletId]);
 
   useEffect(() => {
+    if (linkedSavingGoal || spendInitRef.current) return;
     if (categoryId === '' && categories.length > 0) {
       setCategoryId(categories[0].id);
     }
-  }, [categories, categoryId]);
+  }, [categories, categoryId, linkedSavingGoal]);
 
   const aiMut = useMutation({
     mutationFn: () =>
@@ -186,10 +273,21 @@ export function AddTransactionPage() {
       };
       if (editId) {
         await transactionService.updateTransaction(editId, body);
-        return { createdId: null as number | null };
+        return { createdId: null as number | null, fromSavingGoal: false };
+      }
+      if (linkedSavingGoal && isExpense) {
+        if (walletId === '') throw new Error('Chọn ví trước khi lưu');
+        await savingGoalService.spendFromSavingGoal(linkedSavingGoal.id, {
+          categoryId: Number(categoryId),
+          walletId: Number(walletId),
+          amount: amt,
+          description: description || undefined,
+          transactionDate: date,
+        });
+        return { createdId: null as number | null, fromSavingGoal: true };
       }
       const created = await transactionService.createTransaction(body);
-      return { createdId: created.id };
+      return { createdId: created.id, fromSavingGoal: false };
     },
     onSuccess: async (result) => {
       const savedWalletId = walletId === '' ? null : Number(walletId);
@@ -199,6 +297,12 @@ export function AddTransactionPage() {
       await qc.invalidateQueries({ queryKey: ['wallets'] });
       await qc.invalidateQueries({ queryKey: ['spending-limits'] });
       await qc.invalidateQueries({ queryKey: ['spending-limit-alerts'] });
+      await qc.invalidateQueries({ queryKey: ['saving-goals'] });
+      if (result.fromSavingGoal) {
+        setSpendSuccess(true);
+        setLinkedSavingGoal(null);
+        return;
+      }
       if (result.createdId != null) {
         navigate(`/app/transactions/${result.createdId}/edit`, {
           replace: true,
@@ -232,6 +336,10 @@ export function AddTransactionPage() {
     }
     if (wallets.length > 0 && walletId === '') {
       setError('Chọn ví trước khi lưu');
+      return;
+    }
+    if (spendAiLoading && !categoryId) {
+      setError('Đang chờ AI phân loại danh mục…');
       return;
     }
     if (isExpense) {
@@ -366,16 +474,29 @@ export function AddTransactionPage() {
           </Box>
           <Box>
             <Typography variant="h5" fontWeight={800}>
-              {editId ? 'Sửa giao dịch' : 'Thêm giao dịch'}
+              {linkedSavingGoal
+                ? 'Chi tiêu từ mục tiêu'
+                : editId
+                  ? 'Sửa giao dịch'
+                  : 'Thêm giao dịch'}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Ghi chép thu chi nhanh, chính xác
+              {linkedSavingGoal
+                ? `Ghi nhận chi tiêu cho mục tiêu: ${linkedSavingGoal.name}`
+                : 'Ghi chép thu chi nhanh, chính xác'}
             </Typography>
           </Box>
         </Stack>
 
+        {linkedSavingGoal && (
+          <Alert severity="info" sx={{ mb: 2, borderRadius: 3 }}>
+            Số tiền, ngày và ghi chú có thể chỉnh sửa trước khi xác nhận. AI sẽ tự phân loại danh mục dựa trên
+            tên mục tiêu &quot;{linkedSavingGoal.name}&quot;.
+          </Alert>
+        )}
+
         <AiAssistCard
-          hidden={!!editId}
+          hidden={!!editId || !!linkedSavingGoal}
           value={natural}
           onChange={setNatural}
           onCategorize={runAi}
@@ -392,6 +513,7 @@ export function AddTransactionPage() {
         <TransactionTypeToggle
           isExpense={isExpense}
           onChange={(exp) => {
+            if (linkedSavingGoal) return;
             setIsExpense(exp);
             setCategoryId('');
           }}
@@ -428,12 +550,33 @@ export function AddTransactionPage() {
           />
         </FormSection>
 
-        <FormSection title="Danh mục" subtitle={`Chọn danh mục ${isExpense ? 'chi tiêu' : 'thu nhập'}`}>
-          <CategoryChipPicker
-            categories={categories}
-            value={categoryId}
-            onChange={setCategoryId}
-          />
+        <FormSection
+          title="Danh mục"
+          subtitle={
+            spendAiLoading
+              ? spendAiCategoryHint
+                ? `AI đang tinh chỉnh danh mục (gợi ý: ${spendAiCategoryHint})…`
+                : 'AI đang phân loại theo tên mục tiêu…'
+              : spendAiCategoryHint
+                ? `AI gợi ý: ${spendAiCategoryHint} — có thể đổi trước khi lưu`
+                : `Chọn danh mục ${isExpense ? 'chi tiêu' : 'thu nhập'}`
+          }
+        >
+          <Stack spacing={1.5}>
+            {spendAiLoading && (
+              <Stack direction="row" spacing={1.5} alignItems="center">
+                <CircularProgress size={18} />
+                <Typography variant="caption" color="text.secondary">
+                  Đang phân loại &quot;{linkedSavingGoal?.name}&quot;…
+                </Typography>
+              </Stack>
+            )}
+            <CategoryChipPicker
+              categories={categories}
+              value={categoryId}
+              onChange={setCategoryId}
+            />
+          </Stack>
         </FormSection>
 
         <FormSection title="Ví" subtitle="Giao dịch sẽ ghi vào ví này">
@@ -462,7 +605,24 @@ export function AddTransactionPage() {
           </Alert>
         )}
 
+        {spendSuccess && (
+          <Alert severity="success" sx={{ mb: 2, borderRadius: 3 }}>
+            Chi tiêu từ mục tiêu tiết kiệm thành công. Mục tiêu đã chuyển sang trạng thái &quot;Đã sử dụng&quot;.
+          </Alert>
+        )}
+
         <Stack spacing={1.5} sx={{ mt: 1 }}>
+          {spendSuccess ? (
+            <Button
+              fullWidth
+              variant="contained"
+              onClick={() => navigate('/app/saving-goals')}
+              sx={{ borderRadius: 2, py: 1.25, fontWeight: 800 }}
+            >
+              Về mục tiêu tiết kiệm
+            </Button>
+          ) : (
+            <>
           {editId && (
             <Button
               fullWidth
@@ -479,7 +639,7 @@ export function AddTransactionPage() {
             </Button>
           )}
           <Stack direction="row" spacing={1.5}>
-            <Button fullWidth variant="outlined" onClick={() => navigate('/app/transactions')} sx={{ borderRadius: 2, py: 1.25 }}>
+            <Button fullWidth variant="outlined" onClick={() => navigate(linkedSavingGoal ? '/app/saving-goals' : '/app/transactions')} sx={{ borderRadius: 2, py: 1.25 }}>
               {editId ? 'Xong' : 'Hủy'}
             </Button>
             <Button
@@ -495,9 +655,17 @@ export function AddTransactionPage() {
                 '&:hover': { bgcolor: accent, filter: 'brightness(0.92)' },
               }}
             >
-              {saveMut.isPending ? 'Đang lưu…' : editId ? 'Cập nhật' : 'Lưu giao dịch'}
+              {saveMut.isPending
+                ? 'Đang lưu…'
+                : linkedSavingGoal
+                  ? 'Xác nhận chi tiêu'
+                  : editId
+                    ? 'Cập nhật'
+                    : 'Lưu giao dịch'}
             </Button>
           </Stack>
+            </>
+          )}
         </Stack>
       </Box>
 

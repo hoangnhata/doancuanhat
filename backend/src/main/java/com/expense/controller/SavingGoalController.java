@@ -3,6 +3,8 @@ package com.expense.controller;
 import com.expense.dto.common.ApiResponse;
 import com.expense.dto.saving.SavingGoalDto;
 import com.expense.dto.saving.SavingGoalRequest;
+import com.expense.dto.saving.SavingSpendRequest;
+import com.expense.dto.saving.SavingSpendResponse;
 import com.expense.dto.saving.SavingTransactionDto;
 import com.expense.dto.saving.SavingTransferRequest;
 import com.expense.service.SavingGoalService;
@@ -66,6 +68,14 @@ public class SavingGoalController {
             @Valid @RequestBody SavingTransferRequest request) {
         SavingGoalDto goal = savingGoalService.withdraw(id, request);
         return ResponseEntity.ok(ApiResponse.success("Withdraw successful", goal));
+    }
+
+    @PostMapping("/{id}/spend")
+    public ResponseEntity<ApiResponse<SavingSpendResponse>> spendFromGoal(
+            @PathVariable Long id,
+            @Valid @RequestBody SavingSpendRequest request) {
+        SavingSpendResponse result = savingGoalService.spendFromGoal(id, request);
+        return ResponseEntity.ok(ApiResponse.success("Chi tiêu từ mục tiêu thành công", result));
     }
 
     @GetMapping("/{id}/transactions")

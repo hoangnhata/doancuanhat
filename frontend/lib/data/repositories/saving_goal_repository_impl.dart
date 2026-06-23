@@ -94,6 +94,24 @@ class SavingGoalRepositoryImpl implements SavingGoalRepository {
   }
 
   @override
+  Future<void> spendFromGoal({
+    required int goalId,
+    required int categoryId,
+    required int walletId,
+    required double amount,
+    required String transactionDate,
+    String? description,
+  }) async {
+    await _api.post(ApiConstants.savingGoalSpend(goalId), data: {
+      'categoryId': categoryId,
+      'walletId': walletId,
+      'amount': amount,
+      'transactionDate': transactionDate,
+      if (description != null) 'description': description,
+    });
+  }
+
+  @override
   Future<void> delete(int id) async {
     await _api.delete(ApiConstants.savingGoalById(id));
   }

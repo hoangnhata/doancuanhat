@@ -113,3 +113,75 @@ Hoặc gắn **Elastic IP** (AWS) để IP cố định.
 - [ ] Web production login OK
 - [ ] APK build OK
 - [ ] APK cài + login trên điện thoại OK
+
+---
+
+## D. Flutter Web trên iPhone (không cần Mac)
+
+PWA: deploy Flutter web lên Vercel → mở Safari → **Thêm vào Màn hình chính**.
+
+### D1. Tạo project Vercel mới (app mobile)
+
+1. https://vercel.com → **Add New → Project** → repo `doancuanhat`
+2. **Project Name**: `doancuanhat-app` (hoặc `natta-app`)
+3. Cấu hình:
+
+| Field | Value |
+|-------|--------|
+| Framework | **Other** |
+| Root Directory | **`frontend`** |
+| Install Command | xem bên dưới |
+| Build Command | xem bên dưới |
+| Output Directory | **`build/web`** |
+
+**Install Command** (copy một dòng):
+
+```bash
+git clone https://github.com/flutter/flutter.git -b stable --depth 1 /tmp/flutter && export PATH="/tmp/flutter/bin:$PATH" && flutter config --enable-web && flutter precache --web && cd web && npm install && cd .. && flutter pub get
+```
+
+**Build Command**:
+
+```bash
+export PATH="/tmp/flutter/bin:$PATH" && flutter build web --release --dart-define=API_BASE_URL=/api
+```
+
+4. **Deploy** (lần đầu ~5–10 phút vì cài Flutter)
+
+URL ví dụ: `https://doancuanhat-app.vercel.app`
+
+### D2. CORS trên EC2
+
+Thêm URL app vào `CORS_ALLOWED_ORIGINS`:
+
+```env
+...,https://doancuanhat-app.vercel.app
+```
+
+```bash
+sudo systemctl restart expense-backend
+```
+
+### D3. Thêm vào Màn hình chính (iPhone)
+
+1. Mở **Safari** → vào URL app (vd. `https://doancuanhat-app.vercel.app`)
+2. Đăng nhập thử
+3. Bấm nút **Chia sẻ** (hình vuông + mũi tên)
+4. Cuộn → **Thêm vào Màn hình chính**
+5. Đặt tên **Natta** → **Thêm**
+
+Icon xuất hiện như app native.
+
+### D4. Build local (tuỳ chọn, nhanh hơn)
+
+```powershell
+cd c:\Nam4\Doantotnghiep2\frontend
+.\build-prod-web.ps1
+```
+
+### D5. Lưu ý iPhone
+
+- Cần **internet** để đăng nhập / đồng bộ
+- Camera OCR có thể hạn chế trên web iOS
+- Thông báo push **không** hoạt động trên PWA iOS
+- Dùng Safari (Chrome iOS cũng dùng engine Safari)

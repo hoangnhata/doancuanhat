@@ -18,6 +18,9 @@ function parseGoal(raw: Record<string, unknown>): SavingGoal {
     remainingAmount: Number(raw.remainingAmount ?? 0),
     progressPercent: Number(raw.progressPercent ?? 0),
     isCompleted: Boolean(raw.isCompleted ?? false),
+    completedAt: (raw.completedAt as string | null) ?? undefined,
+    durationDays: raw.durationDays != null ? Number(raw.durationDays) : undefined,
+    totalSavedAmount: raw.totalSavedAmount != null ? Number(raw.totalSavedAmount) : undefined,
     createdAt: raw.createdAt != null ? String(raw.createdAt) : undefined,
     updatedAt: raw.updatedAt != null ? String(raw.updatedAt) : undefined,
   };
@@ -124,4 +127,27 @@ export async function fetchSavingTransactions(
   return (data.data ?? []).map((t) =>
     parseSavingTx(t as Record<string, unknown>),
   );
+}
+
+export async function spendFromSavingGoal(
+  id: number,
+  body: {
+    categoryId: number;
+    walletId: number;
+    amount: number;
+    description?: string;
+    transactionDate: string;
+  },
+): Promise<{ savingGoal: SavingGoal; transactionId: number }> {
+  const { data } = await api.post<
+    ApiEnvelope<{
+      savingGoal: Record<string, unknown>;
+      transaction: { id: number };
+    }>
+  >(`/saving-goals/${id}/spend`, body);
+  const payload = data.data!;
+  return {
+    savingGoal: parseGoal(payload.savingGoal as Record<string, unknown>),
+    transactionId: Number(payload.transaction.id),
+  };
 }

@@ -23,15 +23,19 @@ import {
   AccountBalanceWalletRounded,
   AddCircleOutlineRounded,
   CalendarMonthOutlined,
+  CelebrationRounded,
   CloseRounded,
   DeleteOutlineRounded,
+  EmojiEventsRounded,
   HistoryRounded,
   RemoveCircleOutlineRounded,
   SavingsRounded,
+  ShoppingBagRounded,
   TrendingUpRounded,
 } from '@mui/icons-material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { GradientBackground } from '@/components/common/GradientBackground';
 import { DatePickerField } from '@/components/common/DatePickerField';
 import { formatAmountInput } from '@/components/common/OnboardingField';
@@ -44,17 +48,51 @@ import { palette } from '@/theme';
 
 const STATUS_LABEL: Record<SavingGoalStatus, string> = {
   ACTIVE: 'Đang tiết kiệm',
-  COMPLETED: 'Hoàn thành',
+  COMPLETED: 'Đã hoàn thành',
+  USED: 'Đã sử dụng',
   PAUSED: 'Tạm dừng',
   CANCELLED: 'Đã hủy',
 };
 
-const STATUS_COLOR: Record<SavingGoalStatus, 'default' | 'success' | 'warning' | 'error'> = {
+const STATUS_COLOR: Record<SavingGoalStatus, 'default' | 'success' | 'warning' | 'error' | 'info'> = {
   ACTIVE: 'default',
   COMPLETED: 'success',
+  USED: 'info',
   PAUSED: 'warning',
   CANCELLED: 'error',
 };
+
+function formatDuration(days: number | null | undefined): string {
+  if (days == null) return '—';
+  if (days <= 0) return '1 ngày';
+  return `${days} ngày`;
+}
+
+function formatCompletedDate(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
+function goalCompletedDate(g: SavingGoal): string {
+  return formatCompletedDate(g.completedAt ?? g.updatedAt ?? g.createdAt);
+}
+
+function goalDurationDays(g: SavingGoal): string {
+  if (g.durationDays != null) return formatDuration(g.durationDays);
+  const end = g.completedAt ?? g.updatedAt ?? g.createdAt;
+  const start = g.createdAt;
+  if (!end || !start) return '—';
+  const days = Math.floor(
+    (new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60 * 60 * 24),
+  );
+  return formatDuration(days);
+}
 
 function parseAmount(raw: string): number {
   return Number(raw.replace(/\D/g, '')) || 0;
@@ -68,6 +106,7 @@ function progressColor(g: SavingGoal): string {
 
 export function SavingGoalsPage() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [createOpen, setCreateOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState<'deposit' | 'withdraw' | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -178,6 +217,18 @@ export function SavingGoalsPage() {
   function openHistory(goal: SavingGoal) {
     setSelectedGoal(goal);
     setHistoryOpen(true);
+  }
+
+  function openSpendFromGoal(goal: SavingGoal) {
+    navigate('/app/transactions/add', {
+      state: {
+        fromSavingGoal: {
+          id: goal.id,
+          name: goal.name,
+          amount: goal.targetAmount,
+        },
+      },
+    });
   }
 
   return (
@@ -354,6 +405,10 @@ export function SavingGoalsPage() {
           <Stack spacing={2}>
             {goals.map((g) => {
               const color = progressColor(g);
+              const isCompleted = g.status === 'COMPLETED';
+              const isUsed = g.status === 'USED';
+              const showCelebration = isCompleted || isUsed;
+              const savedDisplay = g.totalSavedAmount ?? g.currentAmount;
               return (
                 <Card
                   key={g.id}
@@ -361,13 +416,65 @@ export function SavingGoalsPage() {
                   sx={{
                     borderRadius: 3,
                     border: '1px solid',
-                    borderColor: g.isCompleted ? '#A5D6A766' : 'divider',
-                    boxShadow: g.isCompleted
+                    borderColor: showCelebration ? '#A5D6A766' : 'divider',
+                    boxShadow: showCelebration
                       ? '0 8px 28px rgba(46, 125, 50, 0.1)'
                       : '0 4px 20px rgba(2, 136, 209, 0.06)',
                   }}
                 >
                   <CardContent sx={{ p: 2.5 }}>
+                    {showCelebration && (
+                      <Paper
+                        elevation={0}
+                        sx={{
+                          mb: 2,
+                          p: 2,
+                          borderRadius: 2.5,
+                          background: 'linear-gradient(135deg, #E8F5E9 0%, #FFF8E1 100%)',
+                          border: '1px solid #A5D6A7',
+                        }}
+                      >
+                        <Stack direction="row" spacing={1.5} alignItems="center">
+                          <Box
+                            sx={{
+                              width: 52,
+                              height: 52,
+                              borderRadius: '50%',
+                              display: 'grid',
+                              placeItems: 'center',
+                              bgcolor: '#FFD54F',
+                              color: '#F57F17',
+                              boxShadow: '0 4px 12px rgba(245, 127, 23, 0.25)',
+                            }}
+                          >
+                            {isUsed ? (
+                              <ShoppingBagRounded />
+                            ) : (
+                              <EmojiEventsRounded sx={{ fontSize: 28 }} />
+                            )}
+                          </Box>
+                          <Box flex={1} minWidth={0}>
+                            <Stack direction="row" spacing={0.75} alignItems="center" mb={0.25}>
+                              <CelebrationRounded sx={{ fontSize: 18, color: '#2E7D32' }} />
+                              <Typography fontWeight={800} color="#2E7D32">
+                                {isUsed ? 'Mục tiêu đã được sử dụng' : 'Chúc mừng! Bạn đã hoàn thành mục tiêu'}
+                              </Typography>
+                            </Stack>
+                            <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
+                              <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                                Hoàn thành: {goalCompletedDate(g)}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                                Thời gian: {goalDurationDays(g)}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                                Đã tiết kiệm: {formatMoneyFull(savedDisplay)}
+                              </Typography>
+                            </Stack>
+                          </Box>
+                        </Stack>
+                      </Paper>
+                    )}
                     <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
                       <Stack direction="row" spacing={1.5} flex={1} minWidth={0}>
                         <Box
@@ -400,6 +507,7 @@ export function SavingGoalsPage() {
                       <IconButton
                         color="error"
                         size="small"
+                        disabled={g.status === 'USED'}
                         onClick={() => {
                           if (confirm('Xóa mục tiêu này? (Chỉ xóa được khi số dư = 0)')) {
                             delMut.mutate(g.id);
@@ -501,16 +609,36 @@ export function SavingGoalsPage() {
                     </Stack>
 
                     <Typography variant="caption" color="text.secondary" display="block" mt={1}>
-                      {g.isCompleted
-                        ? 'Chúc mừng! Bạn đã đạt mục tiêu.'
-                        : `Còn thiếu ${formatMoneyFull(g.remainingAmount)}`}
+                      {isCompleted
+                        ? 'Sẵn sàng chi tiêu cho mục tiêu này.'
+                        : isUsed
+                          ? 'Khoản tiết kiệm đã được chi tiêu.'
+                          : g.isCompleted
+                            ? 'Chúc mừng! Bạn đã đạt mục tiêu.'
+                            : `Còn thiếu ${formatMoneyFull(g.remainingAmount)}`}
                     </Typography>
 
                     <Stack direction="row" spacing={1} mt={2} flexWrap="wrap" useFlexGap>
+                      {isCompleted && (
+                        <Button
+                          size="small"
+                          variant="contained"
+                          color="success"
+                          startIcon={<ShoppingBagRounded />}
+                          onClick={() => openSpendFromGoal(g)}
+                        >
+                          Chi tiêu từ mục tiêu
+                        </Button>
+                      )}
                       <Button
                         size="small"
                         variant="contained"
-                        disabled={g.status === 'CANCELLED' || g.status === 'PAUSED'}
+                        disabled={
+                          g.status === 'CANCELLED' ||
+                          g.status === 'PAUSED' ||
+                          g.status === 'COMPLETED' ||
+                          g.status === 'USED'
+                        }
                         onClick={() => openTransfer(g, 'deposit')}
                       >
                         Nạp tiền
@@ -518,7 +646,11 @@ export function SavingGoalsPage() {
                       <Button
                         size="small"
                         variant="outlined"
-                        disabled={g.status === 'CANCELLED' || g.currentAmount <= 0}
+                        disabled={
+                          g.status === 'CANCELLED' ||
+                          g.currentAmount <= 0 ||
+                          g.status === 'USED'
+                        }
                         onClick={() => openTransfer(g, 'withdraw')}
                       >
                         Rút tiền
@@ -845,7 +977,9 @@ export function SavingGoalsPage() {
               <Stack spacing={1.25}>
                 {history.map((tx) => {
                   const isDeposit = tx.type === 'DEPOSIT';
-                  const accent = isDeposit ? '#2E7D32' : '#F57C00';
+                  const isSpend = tx.type === 'SPEND';
+                  const accent = isDeposit ? '#2E7D32' : isSpend ? '#7B1FA2' : '#F57C00';
+                  const label = isDeposit ? 'Nạp tiền' : isSpend ? 'Chi tiêu từ mục tiêu' : 'Rút tiền';
                   return (
                     <Paper
                       key={tx.id}
@@ -874,6 +1008,8 @@ export function SavingGoalsPage() {
                         >
                           {isDeposit ? (
                             <AddCircleOutlineRounded fontSize="small" />
+                          ) : isSpend ? (
+                            <ShoppingBagRounded fontSize="small" />
                           ) : (
                             <RemoveCircleOutlineRounded fontSize="small" />
                           )}
@@ -881,7 +1017,7 @@ export function SavingGoalsPage() {
                         <Box flex={1} minWidth={0}>
                           <Stack direction="row" justifyContent="space-between" alignItems="center">
                             <Typography fontWeight={800}>
-                              {isDeposit ? 'Nạp tiền' : 'Rút tiền'}
+                              {label}
                             </Typography>
                             <Typography fontWeight={800} color={accent}>
                               {isDeposit ? '+' : '-'}

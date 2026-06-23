@@ -101,6 +101,7 @@ export async function aiCategorize(
   const { data } = await api.post<ApiEnvelope<Record<string, unknown>>>(
     '/transactions/ai/categorize',
     { text, ...(personality ? { personality } : {}) },
+    { timeout: 20_000 },
   );
   return mapAiCategorizeResponse(data.data as Record<string, unknown>);
 }

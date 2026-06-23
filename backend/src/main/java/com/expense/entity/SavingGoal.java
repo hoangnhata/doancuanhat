@@ -53,6 +53,12 @@ public class SavingGoal {
     @Column(length = 500)
     private String note;
 
+    @Column(name = "completed_at")
+    private LocalDateTime completedAt;
+
+    @Column(name = "completed_amount", precision = 15, scale = 2)
+    private BigDecimal completedAmount;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;

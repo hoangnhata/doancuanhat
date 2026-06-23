@@ -29,5 +29,13 @@ abstract class SavingGoalRepository {
     String? note,
   });
   Future<List<SavingTransaction>> getTransactions(int goalId);
+  Future<void> spendFromGoal({
+    required int goalId,
+    required int categoryId,
+    required int walletId,
+    required double amount,
+    required String transactionDate,
+    String? description,
+  });
   Future<void> delete(int id);
 }

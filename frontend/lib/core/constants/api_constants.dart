@@ -56,6 +56,7 @@ class ApiConstants {
   static String savingGoalById(int id) => '/saving-goals/$id';
   static String savingGoalDeposit(int id) => '/saving-goals/$id/deposit';
   static String savingGoalWithdraw(int id) => '/saving-goals/$id/withdraw';
+  static String savingGoalSpend(int id) => '/saving-goals/$id/spend';
   static String savingGoalTransactions(int id) => '/saving-goals/$id/transactions';
 
   static const String recurringTransactions = '/recurring-transactions';

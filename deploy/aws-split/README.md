@@ -16,12 +16,12 @@ Web/Flutter  →  AWS EC2 (Spring Boot)  →  AWS RDS MySQL
 
 ### 0.1. Tài khoản cần có
 
-| Dịch vụ | Link | Dùng cho |
-|---------|------|----------|
-| AWS | https://aws.amazon.com | EC2 + RDS |
-| Hugging Face | https://huggingface.co | AI Service |
-| GitHub | đã có `hoangnhata/doancuanhat` | Source code |
-| Gmail | App Password | OTP email |
+| Dịch vụ      | Link                           | Dùng cho    |
+| ------------ | ------------------------------ | ----------- |
+| AWS          | https://aws.amazon.com         | EC2 + RDS   |
+| Hugging Face | https://huggingface.co         | AI Service  |
+| GitHub       | đã có `hoangnhata/doancuanhat` | Source code |
+| Gmail        | App Password                   | OTP email   |
 
 ### 0.2. Lấy Gemini API key (chatbot)
 
@@ -152,20 +152,20 @@ Kết quả mong đợi:
 1. Tìm **RDS** → **Create database**
 2. Cấu hình:
 
-| Mục | Giá trị |
-|-----|---------|
-| Creation method | **Standard create** |
-| Engine | **MySQL** |
-| Version | 8.0.x |
-| Templates | **Free tier** |
-| DB instance identifier | `expense-db` |
-| Master username | `admin` |
-| Master password | Đặt mật khẩu mạnh → **ghi lại** |
-| DB name | `expense_manager` |
-| Instance class | **db.t3.micro** |
-| Storage | 20 GB (free) |
-| Public access | **Yes** |
-| VPC security group | Tạo mới `expense-rds-sg` |
+| Mục                    | Giá trị                         |
+| ---------------------- | ------------------------------- |
+| Creation method        | **Standard create**             |
+| Engine                 | **MySQL**                       |
+| Version                | 8.0.x                           |
+| Templates              | **Free tier**                   |
+| DB instance identifier | `expense-db`                    |
+| Master username        | `admin`                         |
+| Master password        | Đặt mật khẩu mạnh → **ghi lại** |
+| DB name                | `expense_manager`               |
+| Instance class         | **db.t3.micro**                 |
+| Storage                | 20 GB (free)                    |
+| Public access          | **Yes**                         |
+| VPC security group     | Tạo mới `expense-rds-sg`        |
 
 3. **Create database** — đợi ~5–10 phút (Status = Available)
 
@@ -197,21 +197,21 @@ Tạm thời cho phép từ mọi IP (demo — production nên giới hạn SG E
 1. **EC2 → Instances → Launch instances**
 2. Cấu hình:
 
-| Mục | Giá trị |
-|-----|---------|
-| Name | `expense-backend` |
-| AMI | **Ubuntu Server 22.04 LTS** |
-| Instance type | **t3.micro** (free tier) |
-| Key pair | **Create new** → tải file `.pem` |
-| Security group | Tạo mới `expense-ec2-sg` |
+| Mục            | Giá trị                          |
+| -------------- | -------------------------------- |
+| Name           | `expense-backend`                |
+| AMI            | **Ubuntu Server 22.04 LTS**      |
+| Instance type  | **t3.micro** (free tier)         |
+| Key pair       | **Create new** → tải file `.pem` |
+| Security group | Tạo mới `expense-ec2-sg`         |
 
 3. **Inbound rules** của `expense-ec2-sg`:
 
-| Type | Port | Source |
-|------|------|--------|
-| SSH | 22 | My IP |
-| HTTP | 80 | 0.0.0.0/0 |
-| HTTPS | 443 | 0.0.0.0/0 |
+| Type  | Port | Source    |
+| ----- | ---- | --------- |
+| SSH   | 22   | My IP     |
+| HTTP  | 80   | 0.0.0.0/0 |
+| HTTPS | 443  | 0.0.0.0/0 |
 
 4. Storage: **20 GB** gp3
 5. **Launch instance**
@@ -322,26 +322,26 @@ flutter build apk --dart-define=API_BASE_URL=http://54.123.45.67/api
 
 ## PHẦN 6 — Test end-to-end
 
-| # | Test | Cách |
-|---|------|------|
-| 1 | AI health | `https://USER-expense-ai.hf.space/health` |
-| 2 | Backend | `http://EC2_IP/api/swagger-ui.html` |
-| 3 | Đăng ký | Swagger → POST `/auth/register/request` |
-| 4 | AI categorize | POST `/transactions/ai/categorize` với JWT |
-| 5 | Chatbot | Mở tab Chat trên app |
+| #   | Test          | Cách                                       |
+| --- | ------------- | ------------------------------------------ |
+| 1   | AI health     | `https://USER-expense-ai.hf.space/health`  |
+| 2   | Backend       | `http://EC2_IP/api/swagger-ui.html`        |
+| 3   | Đăng ký       | Swagger → POST `/auth/register/request`    |
+| 4   | AI categorize | POST `/transactions/ai/categorize` với JWT |
+| 5   | Chatbot       | Mở tab Chat trên app                       |
 
 ---
 
 ## Xử lý lỗi thường gặp
 
-| Lỗi | Nguyên nhân | Cách sửa |
-|-----|-------------|----------|
-| Backend không start | Sai RDS URL/password | `journalctl -u expense-backend` |
-| `Communications link failure` | RDS SG chặn EC2 | Mở 3306 từ EC2 security group |
-| AI 503 / timeout | HF Space đang build/sleep | Đợi build xong, gọi `/health` trước |
-| `classify_loaded: false` | Thiếu model trên HF | Push lại `.pt` với Git LFS |
-| CORS error | Thiếu origin | Thêm URL vào `CORS_ALLOWED_ORIGINS` |
-| Email OTP không gửi | Sai App Password | Kiểm tra `MAIL_*` |
+| Lỗi                           | Nguyên nhân               | Cách sửa                            |
+| ----------------------------- | ------------------------- | ----------------------------------- |
+| Backend không start           | Sai RDS URL/password      | `journalctl -u expense-backend`     |
+| `Communications link failure` | RDS SG chặn EC2           | Mở 3306 từ EC2 security group       |
+| AI 503 / timeout              | HF Space đang build/sleep | Đợi build xong, gọi `/health` trước |
+| `classify_loaded: false`      | Thiếu model trên HF       | Push lại `.pt` với Git LFS          |
+| CORS error                    | Thiếu origin              | Thêm URL vào `CORS_ALLOWED_ORIGINS` |
+| Email OTP không gửi           | Sai App Password          | Kiểm tra `MAIL_*`                   |
 
 ---
 

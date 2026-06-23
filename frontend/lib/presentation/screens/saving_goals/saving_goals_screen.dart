@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:expense_manager/core/providers/app_providers.dart';
+import 'package:expense_manager/core/router/app_router.dart';
 import 'package:expense_manager/core/theme/app_theme.dart';
 import 'package:expense_manager/core/utils/api_error.dart';
 import 'package:expense_manager/domain/models/saving_goal.dart';
@@ -49,7 +50,9 @@ class _SavingGoalsScreenState extends ConsumerState<SavingGoalsScreen> {
   String _statusLabel(String status) {
     switch (status) {
       case 'COMPLETED':
-        return 'Hoàn thành';
+        return 'Đã hoàn thành';
+      case 'USED':
+        return 'Đã sử dụng';
       case 'PAUSED':
         return 'Tạm dừng';
       case 'CANCELLED':
@@ -57,6 +60,42 @@ class _SavingGoalsScreenState extends ConsumerState<SavingGoalsScreen> {
       default:
         return 'Đang tiết kiệm';
     }
+  }
+
+  String _formatDuration(int? days) {
+    if (days == null) return '—';
+    if (days <= 0) return '1 ngày';
+    return '$days ngày';
+  }
+
+  String _formatCompletedDate(String? iso, {String? fallback}) {
+    final raw = iso ?? fallback;
+    if (raw == null || raw.isEmpty) return '—';
+    final d = DateTime.tryParse(raw);
+    if (d == null) return '—';
+    return DateFormat('dd/MM/yyyy').format(d);
+  }
+
+  String _goalCompletedDate(SavingGoal g) =>
+      _formatCompletedDate(g.completedAt, fallback: g.updatedAt ?? g.createdAt);
+
+  String _goalDurationDays(SavingGoal g) {
+    if (g.durationDays != null) return _formatDuration(g.durationDays);
+    final endRaw = g.completedAt ?? g.updatedAt ?? g.createdAt;
+    final startRaw = g.createdAt;
+    if (endRaw == null || startRaw == null) return '—';
+    final end = DateTime.tryParse(endRaw);
+    final start = DateTime.tryParse(startRaw);
+    if (end == null || start == null) return '—';
+    return _formatDuration(end.difference(start).inDays);
+  }
+
+  void _openSpendFromGoal(SavingGoal g) {
+    Navigator.pushNamed(
+      context,
+      AppRouter.addTransaction,
+      arguments: SpendFromSavingGoalArgs(id: g.id, name: g.name, amount: g.targetAmount),
+    ).then((_) => _load());
   }
 
   double? _parseAmount(String raw) {
@@ -359,7 +398,17 @@ class _SavingGoalsScreenState extends ConsumerState<SavingGoalsScreen> {
                         itemBuilder: (_, i) {
                           final tx = txs[i];
                           final isDeposit = tx.type == 'DEPOSIT';
-                          final accent = isDeposit ? AppColors.income : const Color(0xFFF57C00);
+                          final isSpend = tx.type == 'SPEND';
+                          final accent = isDeposit
+                              ? AppColors.income
+                              : isSpend
+                                  ? const Color(0xFF7B1FA2)
+                                  : const Color(0xFFF57C00);
+                          final label = isDeposit
+                              ? 'Nạp tiền'
+                              : isSpend
+                                  ? 'Chi tiêu từ mục tiêu'
+                                  : 'Rút tiền';
                           return Container(
                             margin: const EdgeInsets.only(bottom: 10),
                             padding: const EdgeInsets.all(14),
@@ -379,7 +428,11 @@ class _SavingGoalsScreenState extends ConsumerState<SavingGoalsScreen> {
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Icon(
-                                    isDeposit ? Icons.add_circle_outline_rounded : Icons.remove_circle_outline_rounded,
+                                    isDeposit
+                                        ? Icons.add_circle_outline_rounded
+                                        : isSpend
+                                            ? Icons.shopping_bag_outlined
+                                            : Icons.remove_circle_outline_rounded,
                                     color: accent,
                                     size: 22,
                                   ),
@@ -393,7 +446,7 @@ class _SavingGoalsScreenState extends ConsumerState<SavingGoalsScreen> {
                                         children: [
                                           Expanded(
                                             child: Text(
-                                              isDeposit ? 'Nạp tiền' : 'Rút tiền',
+                                              label,
                                               style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
                                             ),
                                           ),
@@ -560,6 +613,10 @@ class _SavingGoalsScreenState extends ConsumerState<SavingGoalsScreen> {
   Widget _buildGoalCard(SavingGoal g) {
     final color = _progressColor(g);
     final progress = (g.progressPercent / 100).clamp(0.0, 1.0);
+    final isCompleted = g.status == 'COMPLETED';
+    final isUsed = g.status == 'USED';
+    final showCelebration = isCompleted || isUsed;
+    final savedDisplay = g.totalSavedAmount ?? g.currentAmount;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -567,12 +624,59 @@ class _SavingGoalsScreenState extends ConsumerState<SavingGoalsScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: g.isCompleted ? Border.all(color: _green.withOpacity(0.35)) : null,
+        border: showCelebration ? Border.all(color: _green.withOpacity(0.35)) : null,
         boxShadow: AppColors.softShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (showCelebration) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              margin: const EdgeInsets.only(bottom: 14),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFE8F5E9), Color(0xFFFFF8E1)],
+                ),
+                border: Border.all(color: const Color(0xFFA5D6A7)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFFFD54F),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      isUsed ? Icons.shopping_bag_outlined : Icons.emoji_events_rounded,
+                      color: const Color(0xFFF57F17),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          isUsed ? 'Mục tiêu đã được sử dụng' : 'Chúc mừng! Bạn đã hoàn thành mục tiêu',
+                          style: GoogleFonts.nunito(fontWeight: FontWeight.w800, color: _green),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Hoàn thành: ${_goalCompletedDate(g)} · Thời gian: ${_goalDurationDays(g)} · Đã tiết kiệm: ${_moneyFmt.format(savedDisplay)} ₫',
+                          style: GoogleFonts.nunito(fontSize: 11, color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -658,9 +762,13 @@ class _SavingGoalsScreenState extends ConsumerState<SavingGoalsScreen> {
           ],
           const SizedBox(height: 6),
           Text(
-            g.isCompleted
-                ? 'Chúc mừng! Bạn đã đạt mục tiêu.'
-                : 'Còn thiếu ${_moneyFmt.format(g.remainingAmount)} ₫',
+            isCompleted
+                ? 'Sẵn sàng chi tiêu cho mục tiêu này.'
+                : isUsed
+                    ? 'Khoản tiết kiệm đã được chi tiêu.'
+                    : g.isCompleted
+                        ? 'Chúc mừng! Bạn đã đạt mục tiêu.'
+                        : 'Còn thiếu ${_moneyFmt.format(g.remainingAmount)} ₫',
             style: GoogleFonts.nunito(fontSize: 12, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 14),
@@ -668,14 +776,26 @@ class _SavingGoalsScreenState extends ConsumerState<SavingGoalsScreen> {
             spacing: 8,
             runSpacing: 8,
             children: [
+              if (isCompleted)
+                FilledButton.icon(
+                  onPressed: () => _openSpendFromGoal(g),
+                  icon: const Icon(Icons.shopping_bag_outlined, size: 18),
+                  style: FilledButton.styleFrom(backgroundColor: _green),
+                  label: const Text('Chi tiêu từ mục tiêu'),
+                ),
               FilledButton(
-                onPressed: g.status == 'CANCELLED' || g.status == 'PAUSED'
+                onPressed: g.status == 'CANCELLED' ||
+                        g.status == 'PAUSED' ||
+                        g.status == 'COMPLETED' ||
+                        g.status == 'USED'
                     ? null
                     : () => _showTransferDialog(g, deposit: true),
                 child: const Text('Nạp tiền'),
               ),
               OutlinedButton(
-                onPressed: g.currentAmount <= 0 || g.status == 'CANCELLED'
+                onPressed: g.currentAmount <= 0 ||
+                        g.status == 'CANCELLED' ||
+                        g.status == 'USED'
                     ? null
                     : () => _showTransferDialog(g, deposit: false),
                 child: const Text('Rút tiền'),

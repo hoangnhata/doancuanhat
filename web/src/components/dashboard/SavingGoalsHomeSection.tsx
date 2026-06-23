@@ -28,7 +28,7 @@ export function SavingGoalsHomeSection() {
 
   if (isLoading) return null;
 
-  const active = goals.filter((g) => g.status === 'ACTIVE' || g.status === 'COMPLETED');
+  const active = goals.filter((g) => g.status === 'ACTIVE' || g.status === 'COMPLETED' || g.status === 'USED');
   const preview = active.slice(0, 3);
   const completedCount = goals.filter((g) => g.isCompleted).length;
   const totalSaved = goals.reduce((sum, g) => sum + g.currentAmount, 0);

@@ -120,9 +120,13 @@ class _MainScreenState extends ConsumerState<MainScreen> {
           boxShadow: AppColors.softShadow,
         ),
         child: SafeArea(
+          top: false,
+          minimum: const EdgeInsets.only(bottom: 6),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-            child: Row(
+            padding: const EdgeInsets.fromLTRB(4, 8, 4, 4),
+            child: SizedBox(
+              height: 60,
+              child: Row(
               children: [
                 Expanded(child: _NavItem(
                   icon: Icons.home_rounded,
@@ -149,6 +153,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                   onTap: () => setState(() => _currentIndex = 3),
                 )),
               ],
+            ),
             ),
           ),
         ),
@@ -269,10 +274,10 @@ class _NavItem extends StatelessWidget {
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.primary.withOpacity(0.15) : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -280,17 +285,18 @@ class _NavItem extends StatelessWidget {
           children: [
             Icon(
               icon,
-              size: 22,
+              size: 24,
               color: isSelected ? AppColors.primary : AppColors.textMuted,
             ),
-            const SizedBox(height: 2),
+            const SizedBox(height: 4),
             Text(
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 10,
+                fontSize: 11,
+                height: 1.1,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                 color: isSelected ? AppColors.primary : AppColors.textMuted,
               ),

@@ -13,6 +13,7 @@ import 'package:expense_manager/presentation/screens/auth/forgot_password_screen
 import 'package:expense_manager/presentation/screens/auth/reset_password_screen.dart';
 import 'package:expense_manager/presentation/screens/main/main_screen.dart';
 import 'package:expense_manager/domain/models/transaction.dart';
+import 'package:expense_manager/domain/models/saving_goal.dart';
 import 'package:expense_manager/presentation/screens/transaction/add_transaction_screen.dart';
 import 'package:expense_manager/presentation/screens/category/category_screen.dart';
 import 'package:expense_manager/presentation/screens/budget/budget_screen.dart';
@@ -78,7 +79,10 @@ class AppRouter {
       case addTransaction:
         final args = settings.arguments;
         return _slideRoute(
-          AddTransactionScreen(transactionToEdit: args is Transaction ? args : null),
+          AddTransactionScreen(
+            transactionToEdit: args is Transaction ? args : null,
+            spendFromGoal: args is SpendFromSavingGoalArgs ? args : null,
+          ),
           addTransaction,
         );
       case categories:

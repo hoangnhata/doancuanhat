@@ -1,14 +1,19 @@
 package com.expense.service;
 
 import com.expense.dto.saving.SavingGoalRequest;
+import com.expense.dto.saving.SavingSpendRequest;
 import com.expense.dto.saving.SavingTransferRequest;
+import com.expense.entity.Category;
 import com.expense.entity.SavingGoal;
 import com.expense.entity.User;
 import com.expense.entity.Wallet;
+import com.expense.entity.enums.CategoryType;
 import com.expense.entity.enums.SavingGoalStatus;
 import com.expense.entity.enums.SavingTransactionType;
+import com.expense.entity.enums.TransactionType;
 import com.expense.repository.SavingGoalRepository;
 import com.expense.repository.SavingTransactionRepository;
+import com.expense.repository.TransactionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,9 +34,11 @@ class SavingGoalServiceTest {
 
     @Mock private SavingGoalRepository savingGoalRepository;
     @Mock private SavingTransactionRepository savingTransactionRepository;
+    @Mock private TransactionRepository transactionRepository;
     @Mock private UserService userService;
     @Mock private WalletService walletService;
     @Mock private WalletBalanceService walletBalanceService;
+    @Mock private CategoryService categoryService;
 
     @InjectMocks private SavingGoalService savingGoalService;
 
@@ -155,5 +162,43 @@ class SavingGoalServiceTest {
 
         assertEquals(new BigDecimal("500000"), result.getCurrentAmount());
         verifyNoInteractions(savingTransactionRepository);
+    }
+
+    @Test
+    void spendFromGoal_completedGoal_createsExpenseAndMarksUsed() {
+        goal.setCurrentAmount(new BigDecimal("15000000"));
+        goal.setStatus(SavingGoalStatus.COMPLETED);
+        goal.setCompletedAt(java.time.LocalDateTime.now());
+        goal.setCompletedAmount(new BigDecimal("15000000"));
+
+        Category category = Category.builder().id(5L).name("Mua sắm").type(CategoryType.EXPENSE).build();
+
+        when(userService.getCurrentUserEntity()).thenReturn(user);
+        when(savingGoalRepository.findByUserIdAndId(1L, 100L)).thenReturn(Optional.of(goal));
+        when(categoryService.getCategoryEntity(5L, 1L)).thenReturn(category);
+        when(walletService.getWalletEntity(10L, 1L)).thenReturn(wallet);
+        when(transactionRepository.save(any())).thenAnswer(inv -> {
+            com.expense.entity.Transaction tx = inv.getArgument(0);
+            tx.setId(200L);
+            return tx;
+        });
+        when(savingGoalRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(savingTransactionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        SavingSpendRequest request = new SavingSpendRequest();
+        request.setCategoryId(5L);
+        request.setWalletId(10L);
+        request.setAmount(new BigDecimal("15000000"));
+        request.setDescription("Chi tiêu cho mục tiêu tiết kiệm: Mua xe");
+        request.setTransactionDate(java.time.LocalDate.now());
+
+        var result = savingGoalService.spendFromGoal(100L, request);
+
+        assertEquals(SavingGoalStatus.USED, result.getSavingGoal().getStatus());
+        assertEquals(BigDecimal.ZERO, result.getSavingGoal().getCurrentAmount());
+        verify(transactionRepository).save(argThat(tx ->
+                tx.getType() == TransactionType.EXPENSE && tx.getSavingGoal() != null));
+        verify(savingTransactionRepository).save(argThat(tx ->
+                tx.getType() == SavingTransactionType.SPEND));
     }
 }

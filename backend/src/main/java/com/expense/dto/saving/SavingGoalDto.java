@@ -26,6 +26,9 @@ public class SavingGoalDto {
     private BigDecimal remainingAmount;
     private BigDecimal progressPercent;
     private Boolean isCompleted;
+    private LocalDateTime completedAt;
+    private Long durationDays;
+    private BigDecimal totalSavedAmount;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

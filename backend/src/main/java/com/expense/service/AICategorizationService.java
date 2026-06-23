@@ -278,7 +278,7 @@ public class AICategorizationService {
                 suggestedCategory = "Ăn uống";
             } else if (text.matches("(?i).*(xăng|grab|uber|xe|taxi|di chuyển).*")) {
                 suggestedCategory = "Di chuyển";
-            } else if (text.matches("(?i).*(mua|sắm|shop).*")) {
+            } else if (text.matches("(?i).*(mua|sắm|shop|laptop|lap top|máy tính|may tinh|điện thoại|dien thoai).*")) {
                 suggestedCategory = "Mua sắm";
             } else if (text.matches("(?i).*(điện|nước|internet|wifi|hóa đơn|hoa don).*")) {
                 suggestedCategory = "Hóa đơn";

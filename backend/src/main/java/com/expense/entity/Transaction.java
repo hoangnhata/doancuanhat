@@ -58,6 +58,10 @@ public class Transaction {
     @JoinColumn(name = "recurring_transaction_id")
     private RecurringTransaction recurringTransaction;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "saving_goal_id")
+    private SavingGoal savingGoal;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

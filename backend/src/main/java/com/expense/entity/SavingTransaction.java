@@ -49,6 +49,10 @@ public class SavingTransaction {
     @Column(length = 500)
     private String note;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "linked_transaction_id")
+    private Transaction linkedTransaction;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

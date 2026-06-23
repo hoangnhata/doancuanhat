@@ -14,8 +14,8 @@ export interface User {
   onboardingStep?: string | null;
 }
 
-export type SavingGoalStatus = "ACTIVE" | "COMPLETED" | "PAUSED" | "CANCELLED";
-export type SavingTransactionType = "DEPOSIT" | "WITHDRAW";
+export type SavingGoalStatus = "ACTIVE" | "COMPLETED" | "USED" | "PAUSED" | "CANCELLED";
+export type SavingTransactionType = "DEPOSIT" | "WITHDRAW" | "SPEND";
 
 export interface SavingGoal {
   id: number;
@@ -28,6 +28,9 @@ export interface SavingGoal {
   remainingAmount: number;
   progressPercent: number;
   isCompleted: boolean;
+  completedAt?: string | null;
+  durationDays?: number | null;
+  totalSavedAmount?: number | null;
   createdAt?: string;
   updatedAt?: string;
 }

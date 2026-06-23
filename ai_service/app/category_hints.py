@@ -39,6 +39,7 @@ _add(r"\b(tiền\s+nhà|tien\s+nha|thuê\s+nhà|thue\s+nha|pay\s+rent|tra\s+tien
 _add(r"\b(chung\s+cư|sửa\s+nhà|sua\s+nha|nội\s+thất|noi\s+that|máy\s+giặt|may\s+giat)\b", "Nhà ở")
 
 # --- Mua sắm: viết tắt dt / điện thoại mới ---
+_add(r"\b(mua\s+lap\b|mua\s+laptop|lap\s*top|mua\s+máy\s+tính|mua\s+may\s+tinh)\b", "Mua sắm")
 _add(r"\b(dt\s+mới|dt\s+moi|đt\s+mới|đt\s+moi|dien\s+thoai\s+moi)\b", "Mua sắm")
 _add(r"\b(mua\s+dt\s+mới|mua\s+dt\s+moi|mua\s+điện\s+thoại\s+mới|mua\s+dien\s+thoai)\b", "Mua sắm")
 _add(r"\b(iphone|samsung\s+mới|macbook|laptop\s+mới|ipad)\b", "Mua sắm")

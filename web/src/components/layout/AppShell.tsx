@@ -14,7 +14,7 @@ import {
   Typography,
   useMediaQuery,
   useTheme,
-} from '@mui/material';
+} from "@mui/material";
 import {
   AddRounded,
   AccountBalanceWalletRounded,
@@ -25,27 +25,31 @@ import {
   SettingsRounded,
   SmartToyRounded,
   SpeedOutlined,
-} from '@mui/icons-material';
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { useMemo } from 'react';
-import { WalletStorageSync } from '@/contexts/SelectedWalletContext';
-import { RobotAvatar } from '@/components/robot';
-import { palette } from '@/theme';
+} from "@mui/icons-material";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useMemo } from "react";
+import { WalletStorageSync } from "@/contexts/SelectedWalletContext";
+import { RobotAvatar } from "@/components/robot";
+import { palette } from "@/theme";
 
 const drawerWidth = 272;
 
 const navItems = [
-  { to: '/app/dashboard', label: 'Trang chủ', icon: <HomeRounded /> },
+  { to: "/app/dashboard", label: "Trang chủ", icon: <HomeRounded /> },
   {
-    to: '/app/transactions',
-    label: 'Giao dịch',
+    to: "/app/transactions",
+    label: "Giao dịch",
     icon: <AccountBalanceWalletRounded />,
   },
-  { to: '/app/budget', label: 'Hạn mức chi tiêu', icon: <SpeedOutlined /> },
-  { to: '/app/saving-goals', label: 'Mục tiêu tiết kiệm', icon: <SavingsRounded /> },
-  { to: '/app/spending-forecast', label: 'Dự báo', icon: <AutoGraphRounded /> },
-  { to: '/app/chat', label: 'Trợ lý AI', icon: <SmartToyRounded /> },
-  { to: '/app/settings', label: 'Cài đặt', icon: <SettingsRounded /> },
+  { to: "/app/budget", label: "Hạn mức chi tiêu", icon: <SpeedOutlined /> },
+  {
+    to: "/app/saving-goals",
+    label: "Mục tiêu tiết kiệm",
+    icon: <SavingsRounded />,
+  },
+  { to: "/app/spending-forecast", label: "Dự báo", icon: <AutoGraphRounded /> },
+  { to: "/app/chat", label: "Trợ lý AI", icon: <SmartToyRounded /> },
+  { to: "/app/settings", label: "Cài đặt", icon: <SettingsRounded /> },
 ];
 
 function isNavRoute(pathname: string, to: string): boolean {
@@ -59,30 +63,36 @@ function tabIndex(pathname: string): number {
 
 export function AppShell() {
   const theme = useTheme();
-  const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
+  const isDesktop = useMediaQuery(theme.breakpoints.up("md"));
   const { pathname } = useLocation();
   const navigate = useNavigate();
 
   const isMainTab = navItems.some((n) => isNavRoute(pathname, n.to));
 
   const title = useMemo(() => {
-    if (pathname.includes('/categories')) return 'Danh mục';
-    if (pathname.includes('/budget')) return 'Hạn mức chi tiêu';
-    if (pathname.includes('/wallets')) return 'Quản lý ví';
-    if (pathname.includes('/recurring')) return 'Giao dịch định kỳ';
-    if (pathname.includes('/analytics')) return 'Phân tích';
-    if (pathname.includes('/saving-goals')) return 'Mục tiêu tiết kiệm';
-    if (pathname.includes('/transactions/add')) return 'Thêm giao dịch';
-    if (pathname.includes('/edit')) return 'Sửa giao dịch';
-    return '';
+    if (pathname.includes("/categories")) return "Danh mục";
+    if (pathname.includes("/budget")) return "Hạn mức chi tiêu";
+    if (pathname.includes("/wallets")) return "Quản lý ví";
+    if (pathname.includes("/recurring")) return "Giao dịch định kỳ";
+    if (pathname.includes("/analytics")) return "Phân tích";
+    if (pathname.includes("/saving-goals")) return "Mục tiêu tiết kiệm";
+    if (pathname.includes("/transactions/add")) return "Thêm giao dịch";
+    if (pathname.includes("/edit")) return "Sửa giao dịch";
+    return "";
   }, [pathname]);
 
   const showSubShell = !isMainTab;
-  const isChatPage = pathname.startsWith('/app/chat');
+  const isChatPage = pathname.startsWith("/app/chat");
   const bottomValue = tabIndex(pathname);
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
+    <Box
+      sx={{
+        display: "flex",
+        minHeight: "100vh",
+        bgcolor: "background.default",
+      }}
+    >
       <WalletStorageSync />
       {isDesktop && isMainTab && (
         <Drawer
@@ -90,15 +100,15 @@ export function AppShell() {
           sx={{
             width: drawerWidth,
             flexShrink: 0,
-            '& .MuiDrawer-paper': {
+            "& .MuiDrawer-paper": {
               width: drawerWidth,
-              boxSizing: 'border-box',
-              borderRight: 'none',
+              boxSizing: "border-box",
+              borderRight: "none",
               background: (t) =>
-                t.palette.mode === 'dark'
+                t.palette.mode === "dark"
                   ? `linear-gradient(180deg, ${palette.primary.dark}22 0%, ${t.palette.background.paper} 40%)`
                   : `linear-gradient(180deg, ${palette.gradientStart} 0%, #fff 38%, #fff 100%)`,
-              boxShadow: '4px 0 40px rgba(2, 136, 209, 0.07)',
+              boxShadow: "4px 0 40px rgba(2, 136, 209, 0.07)",
             },
           }}
         >
@@ -110,8 +120,8 @@ export function AppShell() {
               p: 2,
               borderRadius: 3,
               background: `linear-gradient(135deg, ${palette.primary.main} 0%, ${palette.primary.light} 100%)`,
-              color: '#fff',
-              boxShadow: '0 10px 32px rgba(2, 136, 209, 0.28)',
+              color: "#fff",
+              boxShadow: "0 10px 32px rgba(2, 136, 209, 0.28)",
             }}
           >
             <Box display="flex" alignItems="center" gap={1.5}>
@@ -119,20 +129,28 @@ export function AppShell() {
                 sx={{
                   p: 0.75,
                   borderRadius: 2.5,
-                  bgcolor: 'rgba(255,255,255,0.95)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  bgcolor: "rgba(255,255,255,0.95)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                   flexShrink: 0,
                 }}
               >
                 <RobotAvatar size={38} animated={false} />
               </Box>
               <Box minWidth={0}>
-                <Typography fontWeight={800} fontSize={17} letterSpacing="-0.02em" lineHeight={1.2}>
+                <Typography
+                  fontWeight={800}
+                  fontSize={17}
+                  letterSpacing="-0.02em"
+                  lineHeight={1.2}
+                >
                   Natta
                 </Typography>
-                <Typography variant="caption" sx={{ opacity: 0.88, fontWeight: 600 }}>
+                <Typography
+                  variant="caption"
+                  sx={{ opacity: 0.88, fontWeight: 600 }}
+                >
                   Quản lý chi tiêu
                 </Typography>
               </Box>
@@ -143,7 +161,13 @@ export function AppShell() {
             variant="caption"
             fontWeight={700}
             color="text.secondary"
-            sx={{ px: 3, mb: 1, letterSpacing: 1, textTransform: 'uppercase', fontSize: 10 }}
+            sx={{
+              px: 3,
+              mb: 1,
+              letterSpacing: 1,
+              textTransform: "uppercase",
+              fontSize: 10,
+            }}
           >
             Menu
           </Typography>
@@ -162,14 +186,16 @@ export function AppShell() {
                     py: 1.1,
                     px: 1.5,
                     gap: 0.5,
-                    transition: 'all 0.18s ease',
-                    '&:hover': {
-                      bgcolor: selected ? undefined : `${palette.primary.main}0A`,
+                    transition: "all 0.18s ease",
+                    "&:hover": {
+                      bgcolor: selected
+                        ? undefined
+                        : `${palette.primary.main}0A`,
                     },
-                    '&.Mui-selected': {
+                    "&.Mui-selected": {
                       bgcolor: `${palette.primary.main}14`,
                       color: palette.primary.dark,
-                      '&:hover': { bgcolor: `${palette.primary.main}1A` },
+                      "&:hover": { bgcolor: `${palette.primary.main}1A` },
                     },
                   }}
                 >
@@ -179,13 +205,17 @@ export function AppShell() {
                         width: 38,
                         height: 38,
                         borderRadius: 2,
-                        display: 'grid',
-                        placeItems: 'center',
-                        transition: 'all 0.18s ease',
-                        bgcolor: selected ? palette.primary.main : `${palette.primary.main}10`,
-                        color: selected ? '#fff' : palette.primary.main,
-                        boxShadow: selected ? '0 4px 14px rgba(2, 136, 209, 0.35)' : 'none',
-                        '& svg': { fontSize: 21 },
+                        display: "grid",
+                        placeItems: "center",
+                        transition: "all 0.18s ease",
+                        bgcolor: selected
+                          ? palette.primary.main
+                          : `${palette.primary.main}10`,
+                        color: selected ? "#fff" : palette.primary.main,
+                        boxShadow: selected
+                          ? "0 4px 14px rgba(2, 136, 209, 0.35)"
+                          : "none",
+                        "& svg": { fontSize: 21 },
                       }}
                     >
                       {item.icon}
@@ -196,7 +226,7 @@ export function AppShell() {
                     primaryTypographyProps={{
                       fontWeight: selected ? 800 : 600,
                       fontSize: 14,
-                      letterSpacing: '-0.01em',
+                      letterSpacing: "-0.01em",
                     }}
                   />
                   {selected && (
@@ -221,10 +251,10 @@ export function AppShell() {
         component="main"
         sx={{
           flexGrow: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          minHeight: '100vh',
-          width: { md: isMainTab ? `calc(100% - ${drawerWidth}px)` : '100%' },
+          display: "flex",
+          flexDirection: "column",
+          minHeight: "100vh",
+          width: { md: isMainTab ? `calc(100% - ${drawerWidth}px)` : "100%" },
           pb: !isDesktop && isMainTab ? 10 : 0,
         }}
       >
@@ -235,11 +265,15 @@ export function AppShell() {
             elevation={0}
             sx={{
               borderBottom: 1,
-              borderColor: 'divider',
+              borderColor: "divider",
             }}
           >
             <Toolbar>
-              <IconButton edge="start" onClick={() => navigate(-1)} sx={{ mr: 1 }}>
+              <IconButton
+                edge="start"
+                onClick={() => navigate(-1)}
+                sx={{ mr: 1 }}
+              >
                 <ChevronLeftRounded />
               </IconButton>
               <Typography variant="h6" fontWeight={700} color="text.primary">
@@ -249,7 +283,7 @@ export function AppShell() {
           </AppBar>
         )}
 
-        <Box sx={{ flex: 1, position: 'relative' }}>
+        <Box sx={{ flex: 1, position: "relative" }}>
           <Outlet />
         </Box>
 
@@ -259,29 +293,31 @@ export function AppShell() {
             showLabels
             onChange={(_, v) => navigate(navItems[v].to)}
             sx={{
-              position: 'fixed',
+              position: "fixed",
               bottom: 0,
               left: 0,
               right: 0,
               borderTop: 1,
-              borderColor: 'divider',
-              borderRadius: '20px 20px 0 0',
+              borderColor: "divider",
+              borderRadius: "20px 20px 0 0",
               bgcolor: (t) =>
-                t.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.92)' : 'rgba(255, 255, 255, 0.92)',
-              backdropFilter: 'saturate(180%) blur(16px)',
-              boxShadow: '0 -8px 32px rgba(15, 23, 42, 0.08)',
+                t.palette.mode === "dark"
+                  ? "rgba(30, 41, 59, 0.92)"
+                  : "rgba(255, 255, 255, 0.92)",
+              backdropFilter: "saturate(180%) blur(16px)",
+              boxShadow: "0 -8px 32px rgba(15, 23, 42, 0.08)",
               zIndex: (t) => t.zIndex.appBar,
               py: 0.5,
-              '& .MuiBottomNavigationAction-root': {
+              "& .MuiBottomNavigationAction-root": {
                 minWidth: 0,
                 px: 0.5,
               },
-              '& .MuiBottomNavigationAction-label': {
+              "& .MuiBottomNavigationAction-label": {
                 fontSize: 10,
               },
-              '& .Mui-selected': {
-                color: 'primary.main',
-                '& .MuiBottomNavigationAction-label': { fontWeight: 700 },
+              "& .Mui-selected": {
+                color: "primary.main",
+                "& .MuiBottomNavigationAction-label": { fontWeight: 700 },
               },
             }}
           >
@@ -300,13 +336,13 @@ export function AppShell() {
           <Fab
             color="primary"
             aria-label="add"
-            onClick={() => navigate('/app/transactions/add')}
+            onClick={() => navigate("/app/transactions/add")}
             sx={{
-              position: 'fixed',
+              position: "fixed",
               right: 24,
               bottom: !isDesktop ? 88 : 24,
               zIndex: (t) => t.zIndex.fab,
-              boxShadow: '0 8px 28px rgba(2, 136, 209, 0.38)',
+              boxShadow: "0 8px 28px rgba(2, 136, 209, 0.38)",
             }}
           >
             <AddRounded />

@@ -9,6 +9,11 @@ class SavingGoal {
   final double remainingAmount;
   final double progressPercent;
   final bool isCompleted;
+  final String? completedAt;
+  final int? durationDays;
+  final double? totalSavedAmount;
+  final String? createdAt;
+  final String? updatedAt;
 
   const SavingGoal({
     required this.id,
@@ -21,6 +26,11 @@ class SavingGoal {
     required this.remainingAmount,
     required this.progressPercent,
     required this.isCompleted,
+    this.completedAt,
+    this.durationDays,
+    this.totalSavedAmount,
+    this.createdAt,
+    this.updatedAt,
   });
 
   factory SavingGoal.fromJson(Map<String, dynamic> json) {
@@ -35,8 +45,25 @@ class SavingGoal {
       remainingAmount: (json['remainingAmount'] as num?)?.toDouble() ?? 0,
       progressPercent: (json['progressPercent'] as num?)?.toDouble() ?? 0,
       isCompleted: json['isCompleted'] as bool? ?? false,
+      completedAt: json['completedAt'] as String?,
+      durationDays: (json['durationDays'] as num?)?.toInt(),
+      totalSavedAmount: (json['totalSavedAmount'] as num?)?.toDouble(),
+      createdAt: json['createdAt'] as String?,
+      updatedAt: json['updatedAt'] as String?,
     );
   }
+}
+
+class SpendFromSavingGoalArgs {
+  final int id;
+  final String name;
+  final double amount;
+
+  const SpendFromSavingGoalArgs({
+    required this.id,
+    required this.name,
+    required this.amount,
+  });
 }
 
 class SavingTransaction {

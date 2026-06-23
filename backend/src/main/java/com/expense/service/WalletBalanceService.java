@@ -32,13 +32,16 @@ public class WalletBalanceService {
                 wallet.getId(), userId, SavingTransactionType.DEPOSIT);
         BigDecimal withdraws = savingTransactionRepository.sumAmountByWalletAndType(
                 wallet.getId(), userId, SavingTransactionType.WITHDRAW);
+        BigDecimal spends = savingTransactionRepository.sumAmountByWalletAndType(
+                wallet.getId(), userId, SavingTransactionType.SPEND);
 
         if (income == null) income = BigDecimal.ZERO;
         if (expense == null) expense = BigDecimal.ZERO;
         if (deposits == null) deposits = BigDecimal.ZERO;
         if (withdraws == null) withdraws = BigDecimal.ZERO;
+        if (spends == null) spends = BigDecimal.ZERO;
 
         BigDecimal initial = wallet.getInitialBalance() != null ? wallet.getInitialBalance() : BigDecimal.ZERO;
-        return initial.add(income).subtract(expense).subtract(deposits).add(withdraws);
+        return initial.add(income).subtract(expense).subtract(deposits).add(withdraws).add(spends);
     }
 }

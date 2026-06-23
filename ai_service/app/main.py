@@ -69,9 +69,16 @@ class CategorizeResponse(BaseModel):
 def _startup() -> None:
     global _forecast, _classify, _recognizer
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    print("Loading forecast model...", flush=True)
     _forecast = load_forecast_bundle(MODELS_DIR)
+    print(f"Forecast loaded: {_forecast is not None}", flush=True)
+    print("Loading classify model...", flush=True)
     _classify = load_classify_bundle(MODELS_DIR)
+    print(f"Classify loaded: {_classify is not None}", flush=True)
+    print("Loading OCR recognizer...", flush=True)
     _recognizer = load_recognizer_bundle(MODELS_DIR)
+    print(f"OCR loaded: {_recognizer is not None}", flush=True)
+    print("AI service ready.", flush=True)
 
 
 @app.get("/health")
