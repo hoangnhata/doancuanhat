@@ -1,6 +1,6 @@
 # Deploy Web (Vercel) + Flutter APK
 
-API production: `http://13.115.209.124/api`
+API production: `http://3.115.238.104/api`
 
 ---
 
@@ -32,7 +32,7 @@ git push
 
 | Name | Value |
 |------|--------|
-| `VITE_API_BASE_URL` | `http://13.115.209.124/api` |
+| `VITE_API_BASE_URL` | `http://3.115.238.104/api` |
 
 5. **Deploy**
 
